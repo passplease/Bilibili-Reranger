@@ -10,9 +10,6 @@
 using namespace std;
 using Json = nlohmann::json;
 
-const string ConfigPath = "config";
-map<const char*,Json> storedJson = map<const char*,Json>();
-
 template <class Label,class T>
 bool contains(const Label& label,map<const Label,T> map){
     return map.find(label) != map.end();
@@ -33,7 +30,11 @@ API void removeEnd(const char* target,const char* substring,char** buffer);
 
 API bool fileExists(const char* name, bool absolute = false);
 
-API void throwError(const char* error);
+API void throwError(const char* error) noexcept(false);
+
+API void say(const char* message,const char* color = nullptr);
+
+API void warn(const char* warning);
 
 API bool convertToInt(const char* str, int& num);
 
@@ -50,6 +51,8 @@ API bool createConfig(char* output,const char* filePath, const char* fileType = 
  * Get config file path, other function's parameter: path will call automatically
  * */
 API bool getConfig(char* output,const char* filePath, const char* fileType = ".json");
+
+API void toConfigPath(NotNull char* back,const char* filePath,const char* fileType = ".json");
 
 API bool saveToFile(const char* name,const char* path);
 
@@ -72,18 +75,28 @@ namespace dataStore{
     class Data {
     private:
         bool _valid;
+
+        bool saved = true;
     public:
         map<const string,Data> data = map<const string,Data>();
-        static const string DATA;
-        static const string DATA_LABEL;
+        const static string DATA;
+        map<const string,vector<Data>> dataArrays = map<const string,vector<Data>>();
+        const static string DATA_ARRAY;
 
         map<const string,string> strings = map<const string,string>();
-        static const string STRINGS;
-        static const string STRINGS_LABEL;
+        const static string STRING;
+        map<const string,vector<string>> stringArrays = map<const string,vector<string>>();
+        const static string STRING_ARRAY;
 
         map<const string,int> ints = map<const string,int>();
-        static const string INTS;
-        static const string INTS_LABEL;
+        const static string INT;
+        map<const string,vector<int>> intArrays = map<const string,vector<int>>();
+        const static string INT_ARRAY;
+
+        map<const string,float> floats = map<const string,float>();
+        const static string FLOAT;
+        map<const string,vector<float>> floatArrays = map<const string,vector<float>>();
+        const static string FLOAT_ARRAY;
 
         string name;
 
@@ -92,6 +105,8 @@ namespace dataStore{
         API explicit Data(bool valid = true);
 
         API ~Data();
+
+        API void clear();
 
         [[nodiscard]] API bool valid() const;
 
@@ -108,25 +123,47 @@ namespace dataStore{
 
         API Data& operator=(const Data& other);
 
-        API bool operator==(const Data* other) const;
+        API bool operator==(const Data& other) const;
+
+        API bool operator!=(const Data& other) const;
 
         API Data* operator+=(const Data* other);
 
         API Data operator+(const Data* other) const;
 
+        API void copy(Data** a) const;
+
+        API bool needSave() const;
+
         /**
          * @param recover false means merge new Data to old Data, true means just recover old value
+         * @param vector put the value to vector or not, if true, the recover is false all the time
+         * @param content could be nullptr, if that, means remove the value
+         *
+         * Parameters are the same for followings
          * */
-        API void put(const char* label,const Data* content,bool recover = false);
+        API void put(const char *label, const dataStore::Data *content, bool vector = false, bool recover = true);
 
-        API void put(const char* label,const Data& content,bool recover = false);
+        API void put(const char *label, const char *content, bool vector = false, bool recover = true);
 
-        API void put(const char* label,const char* content,bool recover = true);
+        API void put(const char *label, const int *content, bool vector = false, bool recover = true);
+
+        API void put(const char *label, const float *content, bool vector = false, bool recover = true);
 
         /**
-         * @param recover always true
+         * All get function won't recurse to find label, just find in this object.
          * */
-        API void put(const char* label,const int& content);
+        API Nullable void get(const char* label,dataStore::Data* data,bool copy = false);
+        API Nullable void get(const char* label,vector<dataStore::Data>* data,bool copy = false);
+
+        API Nullable void get(const char* label,const char* string,bool copy = false);
+        API Nullable void get(const char* label,NotNull vector<const char*>* string,bool copy = false);
+
+        API Nullable void get(const char* label,int* ints,bool copy = false);
+        API Nullable void get(const char* label,vector<int>* ints,bool copy = false);
+
+        API Nullable void get(const char* label,float* floats,bool copy = false);
+        API Nullable void get(const char* label,vector<float>* floats,bool copy = false);
 
         /**
          * Save to Json, also to file
@@ -138,15 +175,8 @@ namespace dataStore{
 
         API bool writeToJson();
 
-        API static Data readFromJson(const char* path,const char* name = nullptr,const bool _throw = false);
+        API static Data readFromJson(const char* path,const char* name = nullptr,bool _throw = false);
     };
 }
 
 }
-
-const string dataStore::Data::DATA = "data";
-const string dataStore::Data::DATA_LABEL = "data_";
-const string dataStore::Data::STRINGS = "strings";
-const string dataStore::Data::STRINGS_LABEL = "strings_";
-const string dataStore::Data::INTS = "ints";
-const string dataStore::Data::INTS_LABEL = "ints_";

@@ -1,49 +1,46 @@
 #include <iostream>
 #include <vector>
-#include "PluginInterface.h"
-#include "Util.h"
+#include "tasks.h"
+#include "interface.h"
 
 using namespace std;
+using namespace crawlTask;
 
-vector<Task> keywords = vector<Task>();
-
-string CONFIG_PATH = "Targets",_CONFIG_PATH;
+string CONFIG_PATH = "Targets";
 const string NAME = "Example Plugin";
+const string VIDEO_TAG = "视频标签";
+const string VIDEO_TITLE = "视频标题";
+const string SUBSCRIBER = "关注的人";
 
 dataStore::Data* CONFIG = nullptr;
 
-int load(){
+PluginStatus load(){
     cout << NAME << "插件开始加载" << endl;
-    keywords.emplace_back("数学");
+    exampleConfig();
     char* _path;
     defaultOutputChar(&_path);
     if(getConfig(_path,CONFIG_PATH.c_str())) {
-        _CONFIG_PATH = string(_path);
-        delete _path;
-        cout << NAME << "配置文件创建成功，路径：" << _CONFIG_PATH << endl;
+        cout << NAME << "配置文件创建成功，路径：" << _path << endl;
+        freeOutputChar(&_path);
         CONFIG = new dataStore::Data(dataStore::Data::readFromJson(CONFIG_PATH.c_str(),NAME.c_str()));
         if(CONFIG -> valid()) {
-            CONFIG -> put("tags","选择公理");
-            CONFIG -> writeToJson();
-            return SUCCESS;
+            return PluginStatus::SUCCESS;
         }else{
             cout << NAME << " Open config failed !" << endl;
         }
     }else{
         cout << NAME << " Config file create failed ! Now path: " << *_path << endl;
-        delete _path;
+        freeOutputChar(&_path);
     }
-    return FAIL;
+    return PluginStatus::FAIL;
 }
 
-Task* nextTask(){
-    return nullptr;
-}
+void registerTask(){}
 
-int roughJudge(){
+VideoStatus roughJudge(){
     return VideoStatus::UNKNOWN;
 }
 
-int judge(){
+VideoStatus judge(){
     return VideoStatus::UNKNOWN;
 }

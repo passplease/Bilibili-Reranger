@@ -3,9 +3,7 @@ project(BiliBili_Reranger)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_VERBOSE_MAKEFILEON ON)# 输出构建日志
-add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")# 正常输出日志
-add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
-
+add_compile_options(/utf-8)
 
 add_executable(${PROJECT_NAME} src/main.cpp)
 set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")

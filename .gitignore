@@ -3,9 +3,9 @@
 cmake-build*/
 excluded/
 plugins/ExamplePlugins/.idea/
-out/
 build/
 DebugShells/
+DockerTest
 */env.list
 generate.stamp*
 desktop.ini

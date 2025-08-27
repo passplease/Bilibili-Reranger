@@ -1,9 +1,12 @@
 ﻿#include <vector>
 #include <filesystem>
-#include "Util.h"
+#include <minwindef.h>
+#include <windows.h>
 #include "pluginInterface.h"
+#include "Util.h"
 
 using namespace std;
+using namespace crawlTask;
 namespace fs = std::filesystem;
 
 class PluginHandler {
@@ -29,43 +32,35 @@ public:
 
     PluginStatus load(){
         cout << "正在加载插件：" << *getName() << endl;
-        typedef int (__cdecl *LOAD)();
+        typedef PluginStatus (__cdecl *LOAD)();
         auto createPlugin = (LOAD) GetProcAddress(dll,"load");
         if(createPlugin == nullptr){
             cout << "未找到插件方法！" << endl;
-            return FAIL;
+            return PluginStatus::FAIL;
         }
-        int value = createPlugin();
-        if(value == FAIL){
+        PluginStatus value = createPlugin();
+        if(value == PluginStatus::FAIL){
             cout << "插件注册失败！" << endl;
-            return FAIL;
+            return PluginStatus::FAIL;
         }
         cout << "插件加载成功" << endl;
-        return SUCCESS;
+        return PluginStatus::PASS;
     }
 
-    Task* nextTask(){
-        typedef Task* (__cdecl *NEXT_KEYWORD)();
-        auto plugin = (NEXT_KEYWORD) GetProcAddress(dll, "nextTask");
+    VideoStatus roughJudge(){
+        typedef VideoStatus (__cdecl *ROUGH_JUDGE)();
+        auto plugin = (ROUGH_JUDGE) GetProcAddress(dll, "roughJudge");
         if(plugin == nullptr)
-            return nullptr;
+            return VideoStatus::UNKNOWN;
         return plugin();
     }
 
-    PluginStatus roughJudge(){
-        typedef int (__cdecl *ROUGH_JUDGE)();
-        auto plugin = (ROUGH_JUDGE) GetProcAddress(dll, "roughJudge");
-        if(plugin == nullptr)
-            return PASS;
-        return PluginStatus(plugin());
-    }
-
     VideoStatus judge(){
-        typedef int (__cdecl *JUDGE)();
+        typedef VideoStatus (__cdecl *JUDGE)();
         auto plugin = (JUDGE) GetProcAddress(dll,"judge");
         if(plugin == nullptr)
-            return UNKNOWN;
-        return VideoStatus(plugin());
+            return VideoStatus::UNKNOWN;
+        return plugin();
     }
 
     const string* getName(){
@@ -75,12 +70,11 @@ public:
     static void forEachPlugin(PluginStatus function(PluginHandler)){
         if(!plugins -> empty()) {
             for(const auto & plugin : *plugins){
-                // TODO 是不是得把Plugin存下来
-                PluginHandler examplePlugin = PluginHandler(plugin);
+                auto examplePlugin = PluginHandler(plugin);
                 switch(function(examplePlugin)){
-                    case FAIL : cout << plugin << "插件运行失败！请检查具体原因！" << endl; break;
-                    case SUCCESS : return;
-                    case PASS : continue;
+                    case PluginStatus::FAIL : cout << plugin << "插件运行失败！请检查具体原因！" << endl; break;
+                    case PluginStatus::SUCCESS : return;
+                    case PluginStatus::PASS : continue;
                     default :
                         throwError("Invalid plugin return value !");
                 }
@@ -91,11 +85,11 @@ public:
     static bool checkVideo(VideoStatus function(PluginHandler)){
         if(!plugins -> empty()) {
             for(const auto & plugin : *plugins){
-                PluginHandler examplePlugin = PluginHandler(plugin);
+                auto examplePlugin = PluginHandler(plugin);
                 switch(function(examplePlugin)){
-                    case KEEP : return true;
-                    case THROW : return false;
-                    case UNKNOWN : continue;
+                    case VideoStatus::KEEP : return true;
+                    case VideoStatus::THROW : return false;
+                    case VideoStatus::UNKNOWN : continue;
                     default :
                         throwError("Invalid video status return value !");
                 }

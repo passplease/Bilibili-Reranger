@@ -14,6 +14,9 @@ using namespace std;
 using Json = nlohmann::json;
 namespace fs = std::filesystem;
 
+const string ConfigPath = "config";
+map<const char*,Json> storedJson = map<const char*,Json>();
+
 bool endWith(const char* target,const char* substring){
     string t = string(target);
     string s = string(substring);
@@ -46,9 +49,19 @@ bool fileExists(const char* name, bool absolute){
     return name != nullptr && (absolute ? fs::exists(fs::absolute(name)) : fs::exists(name));
 }
 
-void throwError(const char* error){
+void throwError(const char* error) noexcept(false){
     cout << RED << error << RESET << endl;
     throw runtime_error(error);
+}
+
+void say(const char* message,const char* color){
+    if(color != nullptr)
+        cout << string(color);
+    cout << message << RESET << endl;
+}
+
+void warn(const char* warn){
+    say(warn,YELLOW);
 }
 
 bool convertToInt(const char* str, int& num){
@@ -106,8 +119,11 @@ bool getConfig(char* output,const char* filePath, const char* fileType){
         if(startWith(filePath,ConfigPath.c_str())){
             path = filePath;
         }else {
-            path = string{};
-            path.append(ConfigPath).append("\\").append(filePath).append(fileType);
+            char* back = nullptr;
+            defaultOutputChar(&back);
+            toConfigPath(back,filePath,fileType);
+            path = string(back);
+            freeOutputChar(&back);
         }
         if(fileExists(path.c_str())) {
             strcpy_s(output, strlen(path.c_str()) + 1,path.c_str());
@@ -125,6 +141,12 @@ bool getConfig(char* output,const char* filePath, const char* fileType){
     }catch (...){
         return false;
     }
+}
+
+void toConfigPath(char* back,const char* filePath,const char* fileType){
+    string path{};
+    path = path.append(ConfigPath).append("\\").append(filePath).append(fileType);
+    strcpy_s(back, strlen(path.c_str()) + 1,path.c_str());
 }
 
 bool saveToFile(const char* name,const char* path){
@@ -150,91 +172,30 @@ bool storeJson(const char* name,const char* path,const Json& json,bool release){
 }
 
 namespace dataStore{
-    void defaultOutputChar(char** output){
-        *output = new char[MAX_BUFFER_SIZE];
-    }
-
-    bool createConfig(char* output,const char* filePath, const char* fileType = ".json"){
-        try{
-            if(!fileExists(ConfigPath.c_str())){
-                _mkdir(ConfigPath.c_str());
-            }
-            string path(".\\");
-            path.append(ConfigPath).append("\\").append(filePath).append(fileType);
-            ofstream file(path.c_str());
-            if(file.is_open()){
-                file << "{}";
-                file.close();
-                strcpy_s(output, strlen(path.c_str()) + 1,path.c_str());
-                return true;
-            }else {
-                cout << "创建文件失败！请检查具体原因！" << endl;
-                throwError("Failed at creating file !");
-            }
-            return false;
-        }catch (...){
-            return false;
-        }
-    }
-
-    bool getConfig(char* output,const char* filePath, const char* fileType = ".json"){
-        try{
-            string path;
-            if(startWith(filePath,ConfigPath.c_str())){
-                path = filePath;
-            }else {
-                path = string{};
-                path.append(ConfigPath).append("\\").append(filePath).append(fileType);
-            }
-            if(fileExists(path.c_str())) {
-                strcpy_s(output, strlen(path.c_str()) + 1,path.c_str());
-                return true;
-            }else {
-                char out[MAX_BUFFER_SIZE];
-                if(createConfig(out,filePath, fileType) && fileExists(path.c_str())) {
-                    strcpy_s(output, strlen(out) + 1,out);
-                    return true;
-                }else {
-                    throwError("Failed at creating file !");
-                }
-            }
-            return false;
-        }catch (...){
-            return false;
-        }
-    }
-
-    bool saveToFile(const char* name,const char* path){
-        auto json = getJson(name,nullptr);
-        if(json == nullptr)
-            json = getJson(name,path);
-        if(json != nullptr){
-            ofstream file(path);
-            file << json;
-            file.close();
-            return true;
-        }else return false;
-    }
-
-    bool storeJson(const char* name,const char* path,const Json& json = nullptr,bool release = false){
-        if(release){
-            storedJson.erase(name);
-            return !storedJson.contains(name);
-        }else {
-            storedJson[name] = json == nullptr ? getJson(name,path) : json;
-            return storedJson.contains(name);
-        }
-    }
 
     Data::Data(bool valid) {
         this -> _valid = valid;
+        saved = true;
     }
 
     Data::~Data(){
-        writeToJson();
+        if(needSave())
+            writeToJson();
+        clear();
+        broken();
+    }
+
+    void Data::clear(){
         data.clear();
+        dataArrays.clear();
         strings.clear();
+        stringArrays.clear();
         ints.clear();
+        intArrays.clear();
+        floats.clear();
+        floatArrays.clear();
+        _valid = true;
+        saved = false;
     }
 
     bool Data::valid() const {
@@ -246,8 +207,10 @@ namespace dataStore{
     }
 
     void Data::setName(const char *_name, bool force) {
-        if(this -> name.empty() || force)
-            this -> name = string(_name);
+        if(this -> name.empty() || force) {
+            this->name = string(_name);
+            saved = false;
+        }
     }
 
     void Data::setPath(const char *_path, bool force) {
@@ -256,42 +219,91 @@ namespace dataStore{
             defaultOutputChar(&o);
             getConfig(o, _path);
             this -> path = o;
+            saved = false;
         }
     }
 
     Data &Data::operator=(const dataStore::Data *other) {
-        if(valid() && other -> valid()) {
+        if(valid() && other != nullptr && other -> valid()) {
             this->data = other->data;
+            this->dataArrays = other->dataArrays;
             this->strings = other->strings;
+            this->stringArrays = other->stringArrays;
             this->ints = other->ints;
+            this->intArrays = other->intArrays;
+            this->floats = other->floats;
+            this->floatArrays = other->floatArrays;
+            this->saved = false;
         }
         return *this;
     }
 
     Data &Data::operator=(const dataStore::Data &other) {
         if(other.valid() && &other != this) {
-            this -> data = other.data;
-            this -> strings = other.strings;
-            this -> ints = other.ints;
+            this->data = other.data;
+            this->dataArrays = other.dataArrays;
+            this->strings = other.strings;
+            this->stringArrays = other.stringArrays;
+            this->ints = other.ints;
+            this->intArrays = other.intArrays;
+            this->floats = other.floats;
+            this->floatArrays = other.floatArrays;
+            this->saved = false;
         }
         return *this;
     }
 
-    bool Data::operator==(const dataStore::Data *other) const {
-        if(valid() && other -> valid() && strings == other -> strings && ints == other -> ints){
-            for(const pair<const string, Data>& d : other -> data){
-                if(!(d.second == &data.at(d.first)))
-                    return false;
+    bool Data::operator==(const dataStore::Data& other) const {
+        if(this == &other)
+            return true;
+        if(
+                valid() && other.valid()
+                && strings == other.strings
+                && stringArrays == other.stringArrays
+                && ints == other.ints
+                && intArrays == other.intArrays
+                && floats == other.floats
+                && floatArrays == other.floatArrays
+                ){
+            for(const pair<const string, Data>& d : other.data){
+                if(d.second == data.at(d.first))
+                    continue;
+                return false;
+            }
+            for(const pair<const string,vector<Data>>& _d : other.dataArrays){
+                if(this -> dataArrays.contains(_d.first)){
+                    const auto d = this -> dataArrays.at(_d.first);
+                    if(d.size() == _d.second.size()){
+                        for(int i = 0;i < d.size();i++){
+                            if(d.at(i) == _d.second.at(i)){
+                                continue;
+                            }
+                            return false;
+                        }
+                        continue;
+                    }
+                }
+                return false;
             }
             return true;
         }else return false;
     }
 
+    bool Data::operator!=(const dataStore::Data& other) const{
+        return !(*this == other);
+    }
+
     Data *Data::operator+=(const dataStore::Data *other) {
-        if(valid() && other -> valid()) {
+        if(valid() && other != nullptr && other -> valid()) {
             data.insert(other->data.begin(), other->data.end());
+            dataArrays.insert(other->dataArrays.begin(), other->dataArrays.end());
             strings.insert(other->strings.begin(), other->strings.end());
+            stringArrays.insert(other->stringArrays.begin(), other->stringArrays.end());
             ints.insert(other->ints.begin(), other->ints.end());
+            intArrays.insert(other->intArrays.begin(), other->intArrays.end());
+            floats.insert(other->floats.begin(), other->floats.end());
+            floatArrays.insert(other->floatArrays.begin(), other->floatArrays.end());
+            saved = false;
         }
         return this;
     }
@@ -305,40 +317,222 @@ namespace dataStore{
         return value;
     }
 
-    void Data::put(const char *label, const dataStore::Data *content, bool recover) {
-        if(!valid())
-            return;
-        string stringLabel(label);
-        if(contains<string,Data>(stringLabel,data)){
-            if(recover)
-                data[stringLabel] = *content;
-            else data[stringLabel] += content;
-        }else data[stringLabel] = *content;
+    void Data::copy(Data** a) const {
+        *a = new Data{};
+        **a = this;
     }
 
-    void Data::put(const char *label, const dataStore::Data &content, bool recover) {
-        if(!valid())
-            return;
-        put(label,&content,recover);
+    bool Data::needSave() const{
+        return !saved && valid();
     }
 
-    void Data::put(const char *label, const char *content, bool recover) {
+    void Data::put(const char *label, const dataStore::Data *content, bool vector, bool recover) {
         if(!valid())
             return;
-        string stringLabel(label);
-        if(contains<string,string>(stringLabel,strings)){
-            if(recover)
-                strings[stringLabel] = content;
-            else {
-                string old(strings[stringLabel]);
-                old.append(content);
-                strings[stringLabel] = old;
+        for(const auto& d : content -> data){
+            if(&d.second == this){
+                throwError("Any json file cannot contain itself !");
+                return;
             }
-        }else strings[stringLabel] = content;
+        }
+        for(const auto& dArray : content -> dataArrays){
+            for(const auto& d : dArray.second){
+                if(&d == this){
+                    throwError("Any json file cannot contain itself !");
+                    return;
+                }
+            }
+        }
+        string stringLabel(label);
+        if(vector){
+            if(dataArrays.contains(stringLabel)) {
+                if (content != nullptr)
+                    dataArrays[stringLabel].emplace_back(*content);
+                else dataArrays.erase(stringLabel);
+                saved = false;
+            }else {
+                if(content != nullptr) {
+                    std::vector<Data> newVector{};
+                    newVector.emplace_back(*content);
+                    dataArrays[stringLabel] = newVector;
+                    saved = false;
+                }
+            }
+        }else {
+            if (contains<string, Data>(stringLabel, data)) {
+                if(content == nullptr){
+                    data.erase(stringLabel);
+                    saved = false;
+                    return;
+                }
+                if (recover) {
+                    data[stringLabel] = *content;
+                    saved = false;
+                }
+            } else if(content != nullptr) {
+                data[stringLabel] = *content;
+                saved = false;
+            }
+        }
     }
 
-    void Data::put(const char *label, const int &content) {
-        ints[string(label)] = content;
+    void Data::put(const char *label, const char *content, bool vector, bool recover) {
+        if(!valid())
+            return;
+        string stringLabel(label);
+        if(vector){
+            if(stringArrays.contains(stringLabel)){
+                if(content != nullptr)
+                    stringArrays[stringLabel].emplace_back(content);
+                else stringArrays.erase(stringLabel);
+                saved = false;
+            }else {
+                if(content != nullptr) {
+                    std::vector<string> newVector{};
+                    newVector.emplace_back(content);
+                    stringArrays[stringLabel] = newVector;
+                    saved = false;
+                }
+            }
+        }else {
+            if(contains<string,string>(stringLabel,strings)){
+                if(content == nullptr){
+                    strings.erase(stringLabel);
+                    saved = false;
+                    return;
+                }
+                if(recover) {
+                    strings[stringLabel] = string(content);
+                    saved = false;
+                }
+            }else if(content != nullptr) {
+                strings[stringLabel] = string(content);
+                saved = false;
+            }
+        }
+    }
+
+    void Data::put(const char *label, const int *content, bool vector, bool recover) {
+        if(!valid())
+            return;
+        string stringLabel(label);
+        if(vector){
+            if(intArrays.contains(stringLabel)){
+                if(content != nullptr)
+                    intArrays[stringLabel].emplace_back(*content);
+                else intArrays.erase(stringLabel);
+                saved = false;
+            }else if(content != nullptr){
+                std::vector<int> newVector{};
+                newVector.emplace_back(*content);
+                intArrays[stringLabel] = newVector;
+                saved = false;
+            }
+        }else{
+            if(ints.contains(stringLabel)){
+                if(content == nullptr){
+                    ints.erase(stringLabel);
+                    saved = false;
+                    return;
+                }
+                if(recover) {
+                    ints[stringLabel] = *content;
+                    saved = false;
+                }
+            }else if(content != nullptr) {
+                ints[stringLabel] = *content;
+                saved = false;
+            }
+        }
+    }
+
+    void Data::put(const char *label, const float *content, bool vector, bool recover){
+        if(!valid())
+            return;
+        string stringLabel(label);
+        if(vector){
+            if(floatArrays.contains(stringLabel)){
+                if(content != nullptr) {
+                    floatArrays[stringLabel].emplace_back(*content);
+                }else floatArrays.erase(stringLabel);
+                saved = false;
+            }else if(content != nullptr){
+                std::vector<float> newVector{};
+                newVector.emplace_back(*content);
+                floatArrays[stringLabel] = newVector;
+                saved = false;
+            }
+        }else {
+            if(floats.contains(stringLabel)){
+                if(content == nullptr){
+                    floats.erase(stringLabel);
+                    saved = false;
+                    return;
+                }
+                if(recover) {
+                    floats[stringLabel] = *content;
+                    saved = false;
+                }
+            }else if(content != nullptr) {
+                floats[stringLabel] = *content;
+                saved = false;
+            }
+        }
+    }
+
+    void Data::get(const char *label, dataStore::Data *data,bool copy) {
+        if(copy)
+            *data = this -> data.at(label);
+        else data = &(this -> data.at(label));
+    }
+
+    void Data::get(const char *label, vector<dataStore::Data> *data,bool copy) {
+        if(copy)
+            *data = this -> dataArrays.at(label);
+        else data = &(this -> dataArrays.at(label));
+    }
+
+    void Data::get(const char *label,const char *string, bool copy) {
+        auto s = this -> strings.at(label);
+        if(copy) {
+            s = std::string(s);
+        }
+        string = s.c_str();
+    }
+
+    void Data::get(const char *label, vector<const char *> *string, bool copy) {
+        if(string == nullptr)
+            return;
+        auto s = this -> stringArrays.at(label);
+        for(auto element : s){
+            if(copy)
+                element = std::string(element);
+            string -> emplace_back(element.c_str());
+        }
+    }
+
+    void Data::get(const char *label, int *ints, bool copy) {
+        if(copy)
+            *ints = this -> ints.at(label);
+        else ints = &(this -> ints.at(label));
+    }
+
+    void Data::get(const char *label, vector<int> *ints, bool copy) {
+        if(copy)
+            *ints = this -> intArrays.at(label);
+        else ints = &(this -> intArrays.at(label));
+    }
+
+    void Data::get(const char *label, float *floats, bool copy) {
+        if(copy)
+            *floats = this -> floats.at(label);
+        else floats = &(this -> floats.at(label));
+    }
+
+    void Data::get(const char *label, vector<float> *floats, bool copy) {
+        if(copy)
+            *floats = this -> floatArrays.at(label);
+        else floats = &(this -> floatArrays.at(label));
     }
 
     bool Data::writeToJson(const char *target_name, const char *target_path, bool storage) {
@@ -355,7 +549,9 @@ namespace dataStore{
         }else {
             dataStore::to_json(json,*this);
             storeJson(name.c_str(),path.c_str(),json);
-            return !storage || saveToFile(target_name, target_path);
+            bool back = !storage || saveToFile(target_name, target_path);
+            saved = back;
+            return back;
         }
     }
 
@@ -395,65 +591,134 @@ namespace dataStore{
         return d;
     }
 
-    // TODO 检查读取格式等，需逐步检查
     void from_json(const Json& json,Data& data){
-        Json j,j_label;
-
         try{
-            data = Data{};
-            if (json.contains(Data::DATA)) {
-                j = json[Data::DATA];
-                j_label = json[Data::DATA_LABEL];
-                for (size_t i = 0; i < j.size(); i++) {
-                    data.put(j_label.at(i).dump().c_str(), j.at(i).get<dataStore::Data>());
-                }
-            }
-
-            if (json.contains(Data::STRINGS)) {
-                j = json[Data::STRINGS];
-                j_label = json[Data::STRINGS_LABEL];
-                for (size_t i = 0; i < j.size(); i++) {
-                    data.put(j_label.at(i).dump().c_str(), j.at(i).get<string>().c_str());
-                }
-            }
-
-            if (json.contains(Data::INTS)) {
-                j = json[Data::INTS];
-                j_label = json[Data::INTS_LABEL];
-                for (size_t i = 0; i < j.size(); i++) {
-                    data.put(j_label.at(i).dump().c_str(), j.at(i).get<int>());
+            data.clear();
+            for(const auto& pair : json.items()){
+                const Json& j = pair.value();
+                const string& label = pair.key();
+                if(j.is_array()){
+                    switch (j[0].type()) {
+                        case nlohmann::detail::value_t::object: {
+                            for(int slot = 0;slot < j.size();slot++) {
+                                const Data dataInSlot = j[slot].get<Data>();
+                                data.put(label.c_str(),&dataInSlot,true);
+                            }
+                            break;
+                        }
+                        case nlohmann::detail::value_t::string: {
+                            for(int slot = 0;slot < j.size();slot++) {
+                                const string dataInSlot = j[slot].get<string>();
+                                data.put(label.c_str(),dataInSlot.c_str(),true);
+                            }
+                            break;
+                        }
+                        case nlohmann::detail::value_t::number_integer: {
+                            for(int slot = 0;slot < j.size();slot++) {
+                                const int dataInSlot = j[slot].get<int>();
+                                data.put(label.c_str(),&dataInSlot,true);
+                            }
+                            break;
+                        }
+                        case nlohmann::detail::value_t::number_float: {
+                            for(int slot = 0;slot < j.size();slot++) {
+                                const float dataInSlot = j[slot].get<float>();
+                                data.put(label.c_str(),&dataInSlot,true);
+                            }
+                            break;
+                        }
+                        default: {
+                            data.broken();
+                            throwError("Unchecked Json file, not right format.");
+                            return;
+                        }
+                    }
+                }else {
+                    switch (j.type()) {
+                        case nlohmann::detail::value_t::object: {
+                            const Data d = j.get<Data>();
+                            data.put(label.c_str(),&d);
+                            break;
+                        }
+                        case nlohmann::detail::value_t::string: {
+                            const string d = j.get<string>();
+                            data.put(label.c_str(),d.c_str());
+                            break;
+                        }
+                        case nlohmann::detail::value_t::number_integer: {
+                            const int d = j.get<int>();
+                            data.put(label.c_str(),&d);
+                            break;
+                        }
+                        case nlohmann::detail::value_t::number_float: {
+                            const float d = j.get<float>();
+                            data.put(label.c_str(),&d);
+                            break;
+                        }
+                        default: {
+                            data.broken();
+                            throwError("Unchecked Json file, not right format.");
+                            return;
+                        }
+                    }
                 }
             }
         }catch(const std::exception& e) {
-            cout << "Invalid Json File !" << endl;
+            data.broken();
+            say("Invalid Json File !",RED);
             if(!data.path.empty())
-                cout << "File Path: " << data.path << endl;
-            cout << "Exception Info: " << e.what() << endl;
-            data = Data();
+                say(("File Path: " + data.path).c_str(), RED);
+            say("Exception Info: ",BLUE);
+            throwError(e.what());
         }
     }
 
-    // TODO 检查写入格式等，需逐步检查
     void to_json(Json& json,const Data& data){
-        if (!data.data.empty()) {
-            for (auto &&d: data.data) {
-                json[Data::DATA_LABEL] += string(d.first);
-                json[Data::DATA] += d.second;
-            }
+        string label;
+        for(const auto& i : data.data){
+            label = json.contains(i.first) ? Data::DATA + i.first : i.first;
+            json[label] = i.second;
         }
-
-        if (!data.strings.empty()) {
-            for (auto &&s: data.strings) {
-                json[Data::STRINGS_LABEL] += string(s.first);
-                json[Data::STRINGS] += string(s.second);
-            }
+        for(const auto& i : data.dataArrays){
+            label = json.contains(i.first) ? Data::DATA_ARRAY + i.first : i.first;
+            for(int slot = 0;slot < i.second.size(); slot++)
+                json[label][slot] = i.second.at(slot);
         }
-
-        if (!data.ints.empty()) {
-            for (auto &&i: data.ints) {
-                json[Data::INTS_LABEL] += string(i.first);
-                json[Data::INTS] += i.second;
-            }
+        for(const auto& i : data.strings){
+            label = json.contains(i.first) ? Data::STRING + i.first : i.first;
+            json[label] = i.second;
+        }
+        for(const auto& i : data.stringArrays){
+            label = json.contains(i.first) ? Data::STRING_ARRAY + i.first : i.first;
+            for(int slot = 0;slot < i.second.size(); slot++)
+                json[label][slot] = i.second.at(slot);
+        }
+        for(const auto& i : data.ints){
+            label = json.contains(i.first) ? Data::INT + i.first : i.first;
+            json[label] = i.second;
+        }
+        for(const auto& i : data.intArrays){
+            label = json.contains(i.first) ? Data::INT_ARRAY + i.first : i.first;
+            for(int slot = 0;slot < i.second.size(); slot++)
+                json[label][slot] = i.second.at(slot);
+        }
+        for(const auto& i : data.floats){
+            label = json.contains(i.first) ? Data::FLOAT + i.first : i.first;
+            json[label] = i.second;
+        }
+        for(const auto& i : data.floatArrays){
+            label = json.contains(i.first) ? Data::FLOAT_ARRAY + i.first : i.first;
+            for(int slot = 0;slot < i.second.size(); slot++)
+                json[label][slot] = i.second.at(slot);
         }
     }
 }
+
+const string dataStore::Data::DATA = "data_";
+const string dataStore::Data::DATA_ARRAY = "data_array_";
+const string dataStore::Data::STRING = "string_";
+const string dataStore::Data::STRING_ARRAY = "string_array_";
+const string dataStore::Data::INT = "int_";
+const string dataStore::Data::INT_ARRAY = "int_array_";
+const string dataStore::Data::FLOAT = "float_";
+const string dataStore::Data::FLOAT_ARRAY = "float_array_";
