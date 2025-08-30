@@ -10,7 +10,6 @@ const string commit = "https://api.bilibili.com/x/v2/reply/main?oid=BV18a411W7ge
 const string subscribe = "https://api.bilibili.com/x/relation/followings?vmid=3493105986702255";
 const string liked = "https://api.bilibili.com/x/space/like/video?vmid=3493105986702255";
 const string url = subscribe;
-const bool testDll = true;
 
 const char* cookie = getenv("COOKIE");
 
@@ -28,19 +27,25 @@ bool checkEnv(){
 }
 
 int main(){
-    PluginHandler::loadPlugin();
-    PluginHandler::forEachPlugin([](PluginHandler plugin) -> PluginStatus {
-        return plugin.load();
-    });
+    PluginHandler::loadAll();
 
     if(!checkEnv()) {
         return 1;
     }
 
-    if(testDll){
-        cout << "当前处于测试插件状态，主程序已退出" << endl;
-        return 0;
-    }
+    PluginHandler::forEachPlugin([](PluginHandler plugin) -> PluginStatus {
+        return plugin.registerGroups();
+    });
+
+    #if DEVELOP
+    auto task = crawlTask::nowTask();
+    say("第一个注册的任务：",false);
+    say(task -> keyword,true,GREEN);
+    say("其工作状态：",false);
+    say(crawlTask::getName(task -> mode),true,GREEN);
+    cout << "当前处于测试插件状态，主程序已退出" << endl;
+    return 0;
+    #endif
 
     ostringstream path_stream;
     path_stream << R"(./Testing/DataFromWebsite_)" << 1 << R"(.Json)";

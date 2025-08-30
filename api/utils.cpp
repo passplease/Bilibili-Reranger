@@ -4,12 +4,6 @@
 
 #define MAX_BUFFER_SIZE 100
 
-#define RESET "\033[0m" // 重置颜色
-#define RED "\033[31m" // 红色
-#define GREEN "\033[32m" // 绿色
-#define YELLOW "\033[33m" // 黄色
-#define BLUE "\033[34m" // 蓝色
-
 using namespace std;
 using Json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -54,14 +48,16 @@ void throwError(const char* error) noexcept(false){
     throw runtime_error(error);
 }
 
-void say(const char* message,const char* color){
+void say(const char* message,bool endl,const char* color){
     if(color != nullptr)
         cout << string(color);
-    cout << message << RESET << endl;
+    cout << message << RESET;
+    if(endl)
+        cout << '\n';
 }
 
-void warn(const char* warn){
-    say(warn,YELLOW);
+void warn(const char* warn,bool endl){
+    say(warn,endl,YELLOW);
 }
 
 bool convertToInt(const char* str, int& num){
@@ -129,11 +125,14 @@ bool getConfig(char* output,const char* filePath, const char* fileType){
             strcpy_s(output, strlen(path.c_str()) + 1,path.c_str());
             return true;
         }else {
-            char out[MAX_BUFFER_SIZE];
+            char* out;
+            defaultOutputChar(&out);
             if(createConfig(out,filePath, fileType) && fileExists(path.c_str())) {
                 strcpy_s(output, strlen(out) + 1,out);
+                freeOutputChar(&out);
                 return true;
             }else {
+                freeOutputChar(&out);
                 throwError("Failed at creating file !");
             }
         }
@@ -176,6 +175,14 @@ namespace dataStore{
     Data::Data(bool valid) {
         this -> _valid = valid;
         saved = true;
+    }
+
+    Data::Data(const dataStore::Data &other) {
+        *this = other;
+    }
+
+    Data::Data(const dataStore::Data* other){
+        *this = other;
     }
 
     Data::~Data(){
@@ -234,6 +241,7 @@ namespace dataStore{
             this->floats = other->floats;
             this->floatArrays = other->floatArrays;
             this->saved = false;
+            this->_neverSave = other->_neverSave;
         }
         return *this;
     }
@@ -249,6 +257,7 @@ namespace dataStore{
             this->floats = other.floats;
             this->floatArrays = other.floatArrays;
             this->saved = false;
+            this->_neverSave = other._neverSave;
         }
         return *this;
     }
@@ -323,7 +332,15 @@ namespace dataStore{
     }
 
     bool Data::needSave() const{
-        return !saved && valid();
+        return !neverSave() && !saved && valid();
+    }
+
+    bool Data::neverSave() const {
+        return _neverSave;
+    }
+
+    void Data::NeverSave() {
+        _neverSave = false;
     }
 
     void Data::put(const char *label, const dataStore::Data *content, bool vector, bool recover) {
@@ -480,63 +497,59 @@ namespace dataStore{
         }
     }
 
-    void Data::get(const char *label, dataStore::Data *data,bool copy) {
+    void Data::get(const char *label, dataStore::Data **data,bool copy) {
         if(copy)
-            *data = this -> data.at(label);
-        else data = &(this -> data.at(label));
+            **data = this -> data.at(label);
+        else *data = &(this -> data.at(label));
     }
 
-    void Data::get(const char *label, vector<dataStore::Data> *data,bool copy) {
+    void Data::get(const char *label, vector<dataStore::Data> **data,bool copy) {
         if(copy)
-            *data = this -> dataArrays.at(label);
-        else data = &(this -> dataArrays.at(label));
+            **data = this -> dataArrays.at(label);
+        else *data = &(this -> dataArrays.at(label));
     }
 
-    void Data::get(const char *label,const char *string, bool copy) {
-        auto s = this -> strings.at(label);
-        if(copy) {
-            s = std::string(s);
-        }
-        string = s.c_str();
+    void Data::get(const char *label,const char **string, bool) {
+        *string = this -> strings.at(label).c_str();
     }
 
-    void Data::get(const char *label, vector<const char *> *string, bool copy) {
+    void Data::get(const char *label, vector<const char *> **string, bool copy) {
         if(string == nullptr)
             return;
         auto s = this -> stringArrays.at(label);
         for(auto element : s){
             if(copy)
                 element = std::string(element);
-            string -> emplace_back(element.c_str());
+            (*string) -> emplace_back(element.c_str());
         }
     }
 
-    void Data::get(const char *label, int *ints, bool copy) {
+    void Data::get(const char *label, int **ints, bool copy) {
         if(copy)
-            *ints = this -> ints.at(label);
-        else ints = &(this -> ints.at(label));
+            **ints = this -> ints.at(label);
+        else *ints = &(this -> ints.at(label));
     }
 
-    void Data::get(const char *label, vector<int> *ints, bool copy) {
+    void Data::get(const char *label, vector<int> **ints, bool copy) {
         if(copy)
-            *ints = this -> intArrays.at(label);
-        else ints = &(this -> intArrays.at(label));
+            **ints = this -> intArrays.at(label);
+        else *ints = &(this -> intArrays.at(label));
     }
 
-    void Data::get(const char *label, float *floats, bool copy) {
+    void Data::get(const char *label, float **floats, bool copy) {
         if(copy)
-            *floats = this -> floats.at(label);
-        else floats = &(this -> floats.at(label));
+            **floats = this -> floats.at(label);
+        else *floats = &(this -> floats.at(label));
     }
 
-    void Data::get(const char *label, vector<float> *floats, bool copy) {
+    void Data::get(const char *label, vector<float> **floats, bool copy) {
         if(copy)
-            *floats = this -> floatArrays.at(label);
-        else floats = &(this -> floatArrays.at(label));
+            **floats = this -> floatArrays.at(label);
+        else *floats = &(this -> floatArrays.at(label));
     }
 
     bool Data::writeToJson(const char *target_name, const char *target_path, bool storage) {
-        if(!valid())
+        if(!needSave())
             return false;
         setName(target_name);
         setPath(target_path);
@@ -613,6 +626,7 @@ namespace dataStore{
                             }
                             break;
                         }
+                        case nlohmann::detail::value_t::number_unsigned:
                         case nlohmann::detail::value_t::number_integer: {
                             for(int slot = 0;slot < j.size();slot++) {
                                 const int dataInSlot = j[slot].get<int>();
@@ -645,6 +659,7 @@ namespace dataStore{
                             data.put(label.c_str(),d.c_str());
                             break;
                         }
+                        case nlohmann::detail::value_t::number_unsigned:
                         case nlohmann::detail::value_t::number_integer: {
                             const int d = j.get<int>();
                             data.put(label.c_str(),&d);
@@ -665,10 +680,10 @@ namespace dataStore{
             }
         }catch(const std::exception& e) {
             data.broken();
-            say("Invalid Json File !",RED);
+            say("Invalid Json File !",false,RED);
             if(!data.path.empty())
-                say(("File Path: " + data.path).c_str(), RED);
-            say("Exception Info: ",BLUE);
+                say(("File Path: " + data.path).c_str(),false, RED);
+            say("Exception Info: ",true,BLUE);
             throwError(e.what());
         }
     }

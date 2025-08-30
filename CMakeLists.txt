@@ -52,3 +52,9 @@ get_property(NEED_COPY_PDB GLOBAL PROPERTY COPY_ALL_PDBS)
 if(NEED_COPY_PDB)
     add_dependencies(COPY_ALL_PDBS ${NEED_COPY_PDB})
 endif ()
+
+target_compile_definitions(
+        ${PROJECT_NAME} PRIVATE
+        $<$<CONFIG:Debug>:DEVELOP=true>
+        $<$<NOT:$<CONFIG:Debug>>:DEVELOP=false>
+)

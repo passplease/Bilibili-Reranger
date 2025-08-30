@@ -2,9 +2,13 @@
 
 using namespace crawlTask;
 
-Task::Task(const char *keyword, WorkingMode mode) {
+vector<Group*> groups = vector<Group*>();
+unsigned int workingOn = 0;
+
+Task::Task(const char *keyword,unsigned int videoCount, WorkingMode mode) {
     this -> keyword = keyword;
     this -> mode = mode;
+    this -> videoCount = (int)videoCount;
 }
 
 const char* crawlTask::getName(WorkingMode mode){
@@ -47,11 +51,11 @@ Nullable Group* crawlTask::getGroup(const char* groupName){
         return nullptr;
     }else{
         if(validIndex())
-            return groups[workingIndex];
+            return groups[workingIndex()];
         else {
             string error("Wrong working Index of ");
-            error += std::to_string(workingIndex);
-            error += ". But groups size is ";
+            error += std::to_string(workingIndex());
+            error += ", but groups size is ";
             error += std::to_string(groups.size());
             throwError(error.c_str());
             return nullptr;
@@ -62,7 +66,7 @@ Nullable Group* crawlTask::getGroup(const char* groupName){
 bool crawlTask::registerTask(const char* groupName,Task* task,bool create){
     auto group = getGroup(groupName);
     if(group == nullptr && create){
-        Group temp = Group(groupName);
+        Group temp = Group(groupName,task -> videoCount);
         group = &temp;
     }
     if(group == nullptr) {
@@ -72,12 +76,21 @@ bool crawlTask::registerTask(const char* groupName,Task* task,bool create){
     return group -> registerTask(task);
 }
 
-bool crawlTask::registerGroup(const char* groupName,Group* group){
+bool crawlTask::registerGroup(Group *group, const char *groupName) {
+    if(groupName == nullptr){
+        groupName = group -> name;
+        goto reg;
+    }
     if(!group -> isName(groupName))
         group -> name = groupName;
-    if(getGroup(groupName) != nullptr)
-        return false;
-    groups.emplace_back(group);
+
+    reg:
+    auto exists = getGroup(groupName);
+    if(exists == nullptr) {
+        groups.emplace_back(group);
+    }else {
+        *exists += group;
+    }
     return getGroup(groupName) != nullptr;
 }
 
@@ -97,7 +110,7 @@ Task *Group::nowTask() {
     else {
         string error("Wrong working Index of ");
         error += std::to_string(workingIndex);
-        error += ". But tasks size is ";
+        error += ", but tasks size is ";
         error += std::to_string(tasks.size());
         throwError(error.c_str());
         return nullptr;
@@ -116,16 +129,34 @@ bool Group::registerTask(Task *task) {
     if(task == nullptr)
         return false;
     tasks.emplace_back(task);
+    videoCount += task -> videoCount;
     return true;
 }
 
-Group::Group(const char *name,bool regi) {
+Group::Group(const char *name,unsigned int videoCount,bool regi) {
     this -> name = name;
-    if(regi && !registerGroup(name,this)){
+    this -> videoCount = (int) videoCount;
+    if(regi && !registerGroup(this, name)){
         string error = "Register group failed ! Group name: ";
         error += name;
         throwError(error.c_str());
     }
+}
+
+Group *Group::operator+=(crawlTask::Group &other) {
+    if(isName(other.name)){
+        tasks.insert(tasks.end(),other.tasks.begin(), other.tasks.end());
+        videoCount += other.videoCount;
+    }
+    return this;
+}
+
+Group *Group::operator+=(crawlTask::Group* other) {
+    if(isName(other -> name)){
+        tasks.insert(tasks.end(),other -> tasks.begin(), other -> tasks.end());
+        videoCount += other -> videoCount;
+    }
+    return this;
 }
 
 bool Group::isName(const char *compare) const {
@@ -152,40 +183,61 @@ Task *crawlTask::nowTask() {
     }
 }
 
+unsigned int crawlTask::workingIndex() {
+    return workingOn;
+}
+
 bool crawlTask::validIndex(unsigned int index){
     return  index < groups.size();
 }
 
-void crawlTask::task_from_data(dataStore::Data &data, crawlTask::Task &task) {
-    data.get("keyword",task.keyword);
-    const char* mode = nullptr;
-    data.get("working_mode",mode);
-    task.mode = byName(mode);
-}
-
-void crawlTask::task_to_data(dataStore::Data& data,const Task& task){
-    data.put("keyword",task.keyword);
-    data.put("working_mode", getName(task.mode));
-}
-
-void crawlTask::group_from_data(dataStore::Data& data, Group& group){
-    data.get("name",group.name);
-    vector<dataStore::Data> datas;
-    data.get("tasks",&datas);
-    for(auto task : datas){
-        Task t("");
-        task_from_data(task,t);
-        if(!string(t.keyword).empty())
-            group.tasks.emplace_back(&t);
-        else throwError("Wrong data format for tasks");
+void crawlTask::task_from_data(dataStore::Data &data, crawlTask::Task* task) {
+    data.get("keyword",&task -> keyword);
+    int* count;
+    data.get("videoCount",&count);
+    task -> videoCount = *count;
+    if(data.strings.contains("working_mode")) {
+        const char *mode = nullptr;
+        data.get("working_mode", &mode);
+        task -> mode = byName(mode);
+    }else {
+        int* mode = nullptr;
+        data.get("working_mode",&mode);
+        task -> mode = static_cast<WorkingMode>(*mode);
     }
 }
 
-void crawlTask::group_to_data(dataStore::Data& data, const Group& group){
-    data.put("name",group.name);
-    for(auto task : group.tasks){
+void crawlTask::task_to_data(dataStore::Data& data,const Task* task){
+    data.put("keyword",task -> keyword);
+    data.put("working_mode", getName(task -> mode));
+    data.put("videoCount",&task -> videoCount);
+}
+
+void crawlTask::group_from_data(dataStore::Data& data, Group* group){
+    data.get("name",&group -> name);
+    vector<dataStore::Data>* datas;
+    data.get("tasks",&datas);
+    int* count;
+    data.get("videoCount",&count);
+    group -> videoCount = *count;
+    for(auto& task : *datas){
+        Task* t = new Task("",0);
+        task_from_data(task,t);
+        if(!string(t -> keyword).empty())
+            group -> tasks.emplace_back(t);
+        else {
+            delete t;
+            throwError("Wrong data format for tasks");
+        }
+    }
+}
+
+void crawlTask::group_to_data(dataStore::Data& data, const Group* group){
+    data.put("name",group -> name);
+    data.put("videoCount",&group -> videoCount);
+    for(auto& task : group -> tasks){
         dataStore::Data a{};
-        task_to_data(a,*task);
+        task_to_data(a,task);
         data.put("tasks",&a,true);
     }
 }

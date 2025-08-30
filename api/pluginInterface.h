@@ -33,7 +33,8 @@ namespace crawlTask{
     public:
         const char* keyword;
         WorkingMode mode;
-        explicit Task(const char* keyword,WorkingMode mode = WorkingMode::SEARCH);
+        int videoCount;
+        Task(const char* keyword,unsigned int videoCount,WorkingMode mode = WorkingMode::SEARCH);
     };
 
     class Group{
@@ -42,8 +43,13 @@ namespace crawlTask{
     public:
         vector<Task*> tasks = vector<Task*>();
         const char* name;
+        int videoCount;
 
-        API explicit Group(const char* name,bool regi = true);
+        API explicit Group(const char* name,unsigned int videoCount,bool regi = false);
+
+        API Group* operator+= (Group& other);
+
+        API Group* operator+= (Group* other);
 
         /**
          * @param move Determines if should move to next Task and abort this one
@@ -69,7 +75,7 @@ namespace crawlTask{
 
     API bool registerTask(const char* groupName,Task* task,bool create = true);
 
-    API bool registerGroup(const char* groupName,Group* group);
+    API bool registerGroup(Group *group, const char *groupName = nullptr);
 
     API Nullable Task* nowTask();
 
@@ -78,18 +84,17 @@ namespace crawlTask{
      * */
     API NotNull Task* nextTask(bool move = false);
 
-    vector<Group*> groups = vector<Group*>();
-    unsigned int workingIndex = 0;
+    API unsigned int workingIndex();
 
-    API bool validIndex(unsigned int index = workingIndex);
+    API bool validIndex(unsigned int index = workingIndex());
 
-    API void task_from_data(dataStore::Data& data,Task& task);
+    API void task_from_data(dataStore::Data& data,Task* task);
 
-    API void task_to_data(dataStore::Data& data,const Task& task);
+    API void task_to_data(dataStore::Data& data,const Task* task);
 
-    API void group_from_data(dataStore::Data& data, Group& group);
+    API void group_from_data(dataStore::Data& data, Group* group);
 
-    API void group_to_data(dataStore::Data& data, const Group& group);
+    API void group_to_data(dataStore::Data& data, const Group* group);
 }
 
 }

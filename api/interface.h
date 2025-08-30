@@ -11,7 +11,7 @@ REQUIRED PluginStatus load();
 /**
  * Register all video group and tasks you want to crawl for.
  * */
-OPTIONAL void registerTask();
+OPTIONAL void registerGroups();
 
 /**
  * Rough judge whether need to crawl more data , keep it in website or skip this video

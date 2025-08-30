@@ -11,6 +11,12 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(${PROJECT_NAME} PUBLIC ${API})
 set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL")
 
+target_compile_definitions(
+        ${PROJECT_NAME} PRIVATE
+        $<$<CONFIG:Debug>:DEVELOP=true>
+        $<$<NOT:$<CONFIG:Debug>>:DEVELOP=false>
+)
+
 # Plugin Interface (For Test)
 set(DLL_DIR "${CMAKE_BINARY_DIR}/plugins/${PROJECT_NAME}" PARENT_SCOPE)
 set(DLL_NAME ${PROJECT_NAME} PARENT_SCOPE)

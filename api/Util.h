@@ -19,6 +19,12 @@ Json getJson(const char* name, const char* path);
 
 extern "C"{
 
+#define RESET "\033[0m" // 重置颜色
+#define RED "\033[31m" // 红色
+#define GREEN "\033[32m" // 绿色
+#define YELLOW "\033[33m" // 黄色
+#define BLUE "\033[34m" // 蓝色
+
 API bool endWith(const char* target,const char* substring);
 
 API bool startWith(const char* target,const char* substring);
@@ -32,9 +38,9 @@ API bool fileExists(const char* name, bool absolute = false);
 
 API void throwError(const char* error) noexcept(false);
 
-API void say(const char* message,const char* color = nullptr);
+API void say(const char* message,bool endl = true,const char* color = nullptr);
 
-API void warn(const char* warning);
+API void warn(const char* warning,bool endl = true);
 
 API bool convertToInt(const char* str, int& num);
 
@@ -77,6 +83,7 @@ namespace dataStore{
         bool _valid;
 
         bool saved = true;
+        bool _neverSave = false;
     public:
         map<const string,Data> data = map<const string,Data>();
         const static string DATA;
@@ -103,6 +110,10 @@ namespace dataStore{
         string path;
 
         API explicit Data(bool valid = true);
+
+        API Data(const dataStore::Data& other);
+
+        API Data(const dataStore::Data* other);
 
         API ~Data();
 
@@ -135,6 +146,10 @@ namespace dataStore{
 
         API bool needSave() const;
 
+        API bool neverSave() const;
+
+        API void NeverSave();
+
         /**
          * @param recover false means merge new Data to old Data, true means just recover old value
          * @param vector put the value to vector or not, if true, the recover is false all the time
@@ -153,17 +168,20 @@ namespace dataStore{
         /**
          * All get function won't recurse to find label, just find in this object.
          * */
-        API Nullable void get(const char* label,dataStore::Data* data,bool copy = false);
-        API Nullable void get(const char* label,vector<dataStore::Data>* data,bool copy = false);
+        API Nullable void get(const char* label,dataStore::Data** data,bool copy = false);
+        API Nullable void get(const char* label,vector<dataStore::Data>** data,bool copy = false);
 
-        API Nullable void get(const char* label,const char* string,bool copy = false);
-        API Nullable void get(const char* label,NotNull vector<const char*>* string,bool copy = false);
+        /**
+         * @param copy For string, this parameter is invalid, only true is allowed
+         * */
+        API Nullable void get(const char* label,const char** string,bool copy = true);
+        API Nullable void get(const char* label,NotNull vector<const char*>** string,bool copy = false);
 
-        API Nullable void get(const char* label,int* ints,bool copy = false);
-        API Nullable void get(const char* label,vector<int>* ints,bool copy = false);
+        API Nullable void get(const char* label,int** ints,bool copy = false);
+        API Nullable void get(const char* label,vector<int>** ints,bool copy = false);
 
-        API Nullable void get(const char* label,float* floats,bool copy = false);
-        API Nullable void get(const char* label,vector<float>* floats,bool copy = false);
+        API Nullable void get(const char* label,float** floats,bool copy = false);
+        API Nullable void get(const char* label,vector<float>** floats,bool copy = false);
 
         /**
          * Save to Json, also to file

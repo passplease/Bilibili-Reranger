@@ -1,11 +1,13 @@
-#include "PluginInterface.h"
+#include "pluginInterface.h"
+
+#define EXPORT __declspec(dllexport)
 
 extern "C" {
-    API PluginStatus load();
+EXPORT PluginStatus load();
 
-    API void registerTask();
+EXPORT void registerGroups();
 
-    API VideoStatus roughJudge();
+EXPORT VideoStatus roughJudge();
 
-    API VideoStatus judge();
+EXPORT VideoStatus judge();
 }

@@ -21,6 +21,11 @@ target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json::nlohmann_json)
 set_property(TARGET ${PROJECT_NAME} PROPERTY ENABLE_EXPORTS ON)# Allow export
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE API_DLL)
+target_compile_definitions(
+        ${PROJECT_NAME} PRIVATE
+        $<$<CONFIG:Debug>:DEVELOP=true>
+        $<$<NOT:$<CONFIG:Debug>>:DEVELOP=false>
+)
 target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_custom_target(

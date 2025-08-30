@@ -1,74 +1,74 @@
 #include "Util.h"
 #include "pluginInterface.h"
 
-crawlTask::Group political("political");
-crawlTask::Group math("math");
-crawlTask::Group physical("physical");
-crawlTask::Group chemistry("chemistry");
-crawlTask::Group biological("biological");
+crawlTask::Group political("political",0);
+crawlTask::Group math("math",0);
+crawlTask::Group physical("physical",0);
+crawlTask::Group chemistry("chemistry",0);
+crawlTask::Group biological("biological",0);
 
-const string EXAMPLE_PATH = "ExampleConfig";
-const string EXAMPLE_NAME = "example_for_example_plugin";
-const string GROUPS_LABEL = "groups";
+#define EXAMPLE_PATH "ExampleConfig"
+#define EXAMPLE_NAME "example_for_example_plugin"
+#define GROUPS_LABEL "groups"
 
 void initGroups(){
     crawlTask::Task* a = nullptr;
-    a = new crawlTask::Task{"波士顿圆脸",crawlTask::WorkingMode::SUBSCRIBE};
+    a = new crawlTask::Task{"波士顿圆脸",10,crawlTask::WorkingMode::SUBSCRIBE};
     political.registerTask(a);
-    a = new crawlTask::Task("军情D7处",crawlTask::WorkingMode::SUBSCRIBE);
+    a = new crawlTask::Task("军情D7处",10,crawlTask::WorkingMode::SUBSCRIBE);
     political.registerTask(a);
-    a = new crawlTask::Task("巴以冲突");
+    a = new crawlTask::Task("巴以冲突",20);
     political.registerTask(a);
 
-    a = new crawlTask::Task("选择公理");
+    a = new crawlTask::Task("选择公理",5);
     math.registerTask(a);
-    a = new crawlTask::Task("数学",crawlTask::WorkingMode::TAG);
+    a = new crawlTask::Task("数学",20,crawlTask::WorkingMode::TAG);
     math.registerTask(a);
 
-    a = new crawlTask::Task("物理");
+    a = new crawlTask::Task("物理",10);
     physical.registerTask(a);
 
-    a = new crawlTask::Task("有机化学");
+    a = new crawlTask::Task("有机化学",5);
     chemistry.registerTask(a);
-    a = new crawlTask::Task("化学",crawlTask::WorkingMode::TAG);
+    a = new crawlTask::Task("化学",5,crawlTask::WorkingMode::TAG);
     chemistry.registerTask(a);
 
-    a = new crawlTask::Task("生物");
+    a = new crawlTask::Task("生物",20);
     biological.registerTask(a);
 }
 
 void exampleConfig(){
     char* path;
     defaultOutputChar(&path);
-    toConfigPath(path,EXAMPLE_PATH.c_str());
-    if(!fileExists(path) && createConfig(path,EXAMPLE_PATH.c_str())) {
+    toConfigPath(path,EXAMPLE_PATH);
+    if(!fileExists(path) && createConfig(path,EXAMPLE_PATH)) {
         initGroups();
-        auto example = dataStore::Data::readFromJson(EXAMPLE_PATH.c_str(),EXAMPLE_NAME.c_str());
+        auto example = dataStore::Data::readFromJson(EXAMPLE_PATH,EXAMPLE_NAME);
         dataStore::Data a{};
-        crawlTask::group_to_data(a,political);
+        crawlTask::group_to_data(a,&political);
         dataStore::Data* b = nullptr;
         a.copy(&b);
-        example.put(GROUPS_LABEL.c_str(),b,true);
+        example.put(GROUPS_LABEL,b,true);
         a.clear();
 
-        crawlTask::group_to_data(a,math);
+        crawlTask::group_to_data(a,&math);
         a.copy(&b);
-        example.put(GROUPS_LABEL.c_str(),b, true);
+        example.put(GROUPS_LABEL,b, true);
         a.clear();
 
-        crawlTask::group_to_data(a,physical);
+        crawlTask::group_to_data(a,&physical);
         a.copy(&b);
-        example.put(GROUPS_LABEL.c_str(),b, true);
+        example.put(GROUPS_LABEL,b, true);
         a.clear();
 
-        crawlTask::group_to_data(a,chemistry);
+        crawlTask::group_to_data(a,&chemistry);
         a.copy(&b);
-        example.put(GROUPS_LABEL.c_str(),b, true);
+        example.put(GROUPS_LABEL,b, true);
         a.clear();
 
-        crawlTask::group_to_data(a,biological);
+        crawlTask::group_to_data(a,&biological);
         a.copy(&b);
-        example.put(GROUPS_LABEL.c_str(),b, true);
+        example.put(GROUPS_LABEL,b, true);
         a.clear();
 
         example.writeToJson();

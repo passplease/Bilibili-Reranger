@@ -4,6 +4,7 @@ cmake-build*/
 excluded/
 plugins/ExamplePlugins/.idea/
 build/
+release/
 DebugShells/
 DockerTest
 */env.list
