@@ -2,8 +2,7 @@
 #include <filesystem>
 #include <minwindef.h>
 #include <windows.h>
-#include "pluginInterface.h"
-#include "Util.h"
+#include "interface.h"
 
 using namespace std;
 using namespace crawlTask;
@@ -33,7 +32,6 @@ public:
 
     PluginStatus load(){
         cout << "正在加载插件：" << *getName() << endl;
-        typedef PluginStatus (__cdecl *LOAD)();
         auto createPlugin = (LOAD) GetProcAddress(dll,"load");
         if(createPlugin == nullptr){
             cout << "未找到插件方法！" << endl;
@@ -49,7 +47,6 @@ public:
     }
 
     PluginStatus registerGroups(){
-        typedef void (__cdecl *REGISTER)();
         auto plugin = (REGISTER) GetProcAddress(dll,"registerGroups");
         if(plugin == nullptr)
             return PluginStatus::PASS;
@@ -58,7 +55,6 @@ public:
     }
 
     VideoStatus roughJudge(){
-        typedef VideoStatus (__cdecl *ROUGH_JUDGE)();
         auto plugin = (ROUGH_JUDGE) GetProcAddress(dll, "roughJudge");
         if(plugin == nullptr)
             return VideoStatus::UNKNOWN;
@@ -66,7 +62,6 @@ public:
     }
 
     VideoStatus judge(){
-        typedef VideoStatus (__cdecl *JUDGE)();
         auto plugin = (JUDGE) GetProcAddress(dll,"judge");
         if(plugin == nullptr)
             return VideoStatus::UNKNOWN;
@@ -156,3 +151,15 @@ const string PluginHandler::Plugin_Dir = "plugins";
 const vector<string>* PluginHandler::pluginNames = PluginHandler::searchPlugin(new vector<string>());
 
 vector<PluginHandler*>* PluginHandler::plugins = new vector<PluginHandler*>();
+
+bool roughCheckVideo(){
+    return PluginHandler::checkVideo([](PluginHandler handler) -> VideoStatus{
+        return handler.roughJudge();
+    });
+}
+
+bool finalCheckVideo(){
+    return PluginHandler::checkVideo([](PluginHandler handler) -> VideoStatus{
+        return handler.judge();
+    });
+}

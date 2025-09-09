@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.27)
 project(BiliBili_Reranger_API)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_VERBOSE_MAKEFILEON ON)# 输出构建日志
+set(DCMAKE_VERBOSE_MAKEFILE ON)# 输出构建日志
 add_compile_options(/utf-8)
 
 set(API ${PROJECT_NAME} PARENT_SCOPE)
@@ -13,6 +13,12 @@ add_library(${PROJECT_NAME} SHARED
         pluginInterface.h
         APIStatus.h
         pluginInterface.cpp
+        interface.h
+        config.h
+        mainConfig.cpp
+        bilibiliAPIs.h
+        BilibiliInterface.cpp
+        BilibiliInterface.h
 )
 
 find_package(nlohmann_json CONFIG REQUIRED)

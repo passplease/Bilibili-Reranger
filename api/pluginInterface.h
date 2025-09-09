@@ -25,6 +25,8 @@ namespace crawlTask{
         TAG
     };
 
+    API int defaultDaytime(WorkingMode mode);
+
     API const char* getName(WorkingMode mode);
 
     API Nullable WorkingMode byName(const char* name);
@@ -34,7 +36,8 @@ namespace crawlTask{
         const char* keyword;
         WorkingMode mode;
         int videoCount;
-        Task(const char* keyword,unsigned int videoCount,WorkingMode mode = WorkingMode::SEARCH);
+        int publishedDay;
+        Task(const char* keyword,unsigned int videoCount,WorkingMode mode = WorkingMode::SEARCH,int publishedDay = -1);
     };
 
     class Group{
@@ -71,18 +74,20 @@ namespace crawlTask{
     /**
      * @param groupName Null means get the group now working for
      * */
-    API Nullable Group* getGroup(const char* groupName = nullptr);
+    API Nullable Group* getGroup(const char* groupName = nullptr) noexcept;
+
+    API NotNull Group* nextGroup();
 
     API bool registerTask(const char* groupName,Task* task,bool create = true);
 
     API bool registerGroup(Group *group, const char *groupName = nullptr);
 
-    API Nullable Task* nowTask();
+    API Nullable Task* nowTask() noexcept(false);
 
     /**
      * @param move Determines if should move to next Task and abort this one
      * */
-    API NotNull Task* nextTask(bool move = false);
+    API Nullable Task* nextTask(bool move = false);
 
     API unsigned int workingIndex();
 

@@ -1,14 +1,16 @@
 #include "pluginInterface.h"
+#include "config.h"
 
 using namespace crawlTask;
 
 vector<Group*> groups = vector<Group*>();
 unsigned int workingOn = 0;
 
-Task::Task(const char *keyword,unsigned int videoCount, WorkingMode mode) {
+Task::Task(const char *keyword,unsigned int videoCount, WorkingMode mode,int publishedDay) {
     this -> keyword = keyword;
     this -> mode = mode;
     this -> videoCount = (int)videoCount;
+    this -> publishedDay = publishedDay >= 0 ? publishedDay : defaultDaytime(mode);
 }
 
 const char* crawlTask::getName(WorkingMode mode){
@@ -29,6 +31,13 @@ const char* crawlTask::getName(WorkingMode mode){
     }
 }
 
+int crawlTask::defaultDaytime(crawlTask::WorkingMode mode) {
+    switch(mode){
+        case WorkingMode::SUBSCRIBE : return config<int>(SUBSCRIBE_PUBLISH_TIME);
+        default : return INT_MAX;
+    }
+}
+
 WorkingMode crawlTask::byName(const char *name) {
     string mode(name);
     if(mode == "搜索模式")
@@ -41,7 +50,7 @@ WorkingMode crawlTask::byName(const char *name) {
     return WorkingMode::SEARCH;
 }
 
-Nullable Group* crawlTask::getGroup(const char* groupName){
+Nullable Group* crawlTask::getGroup(const char* groupName) noexcept{
     if(groupName != nullptr) {
         string name(groupName);
         for (const auto group: groups) {
@@ -53,14 +62,19 @@ Nullable Group* crawlTask::getGroup(const char* groupName){
         if(validIndex())
             return groups[workingIndex()];
         else {
-            string error("Wrong working Index of ");
-            error += std::to_string(workingIndex());
-            error += ", but groups size is ";
-            error += std::to_string(groups.size());
-            throwError(error.c_str());
+//            string error("Wrong working Index of ");
+//            error += std::to_string(workingIndex());
+//            error += ", but groups size is ";
+//            error += std::to_string(groups.size());
+//            throwError(error.c_str());
             return nullptr;
         }
     }
+}
+
+Nullable Group* crawlTask::nextGroup(){
+    workingOn++;
+    return validIndex(workingIndex()) ? getGroup() : nullptr;
 }
 
 bool crawlTask::registerTask(const char* groupName,Task* task,bool create){
@@ -165,20 +179,26 @@ bool Group::isName(const char *compare) const {
     return a == b;
 }
 
-Task *crawlTask::nextTask(bool move) {
+Nullable Task *crawlTask::nextTask(bool move) {
     auto group = getGroup();
     if(group != nullptr){
-        return group -> nextTask(move);
+        auto next = group -> nextTask(move);
+        if(next == nullptr){
+            auto _next = nextGroup();
+            if(_next == nullptr)
+                return nullptr;
+            else return _next -> nowTask();
+        }else return next;
     }
     return nullptr;
 }
 
-Task *crawlTask::nowTask() {
+Task *crawlTask::nowTask() noexcept(false){
     auto group = getGroup();
     if(group != nullptr){
         return group -> nowTask();
     }else {
-        throwError("Wrong working status !");
+//        throwError("Wrong working status !");
         return nullptr;
     }
 }

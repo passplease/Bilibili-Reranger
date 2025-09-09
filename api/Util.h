@@ -48,6 +48,8 @@ API void defaultOutputChar(char** output);
 
 API void freeOutputChar(char** output);
 
+API void deleteConfig(const char* filePath, const char* fileType = ".json");
+
 /**
  * Create a config file (default .Json)
  * */
@@ -74,11 +76,12 @@ API bool storeJson(const char* name,const char* path,const Json& json = nullptr,
 namespace dataStore{
     class Data;
 
-    void from_json(const Json& json,Data& data);
+    API void from_json(const Json& json,Data& data);
 
-    void to_json(Json& json,const Data& data);
+    API void to_json(Json& json,const Data& data);
 
     class Data {
+        friend void setSaved(dataStore::Data *data, bool saved);
     private:
         bool _valid;
 
@@ -105,6 +108,11 @@ namespace dataStore{
         map<const string,vector<float>> floatArrays = map<const string,vector<float>>();
         const static string FLOAT_ARRAY;
 
+        map<const string,bool> bools = map<const string,bool>();
+        const static string BOOL;
+        map<const string,vector<bool>> boolArrays = map<const string,vector<bool>>();
+        const static string BOOL_ARRAY;
+
         string name;
 
         string path;
@@ -126,7 +134,7 @@ namespace dataStore{
         API void setName(const char* _name, bool force = false);
 
         /**
-         * @param _path Return value of getConfig()
+         * @param _path Return value of config()
          * */
         API void setPath(const char* _path, bool force = false);
 
@@ -138,7 +146,9 @@ namespace dataStore{
 
         API bool operator!=(const Data& other) const;
 
-        API Data* operator+=(const Data* other);
+        API Data * operator+=(const dataStore::Data *other);
+
+        API Data* operator+=(const Data& other);
 
         API Data operator+(const Data* other) const;
 
@@ -149,6 +159,11 @@ namespace dataStore{
         API bool neverSave() const;
 
         API void NeverSave();
+
+        /**
+         * Check if the input is contained in this
+         * */
+        API void validData(const Data* input) noexcept(false);
 
         /**
          * @param recover false means merge new Data to old Data, true means just recover old value
@@ -164,6 +179,16 @@ namespace dataStore{
         API void put(const char *label, const int *content, bool vector = false, bool recover = true);
 
         API void put(const char *label, const float *content, bool vector = false, bool recover = true);
+
+        API void put(const char *label, const bool *content, bool vector = false, bool recover = true);
+
+        API void put(const char *label, const dataStore::Data &content, bool vector = false, bool recover = true);
+
+        API void put(const char *label, const int &content, bool vector = false, bool recover = true);
+
+        API void put(const char *label, const float &content, bool vector = false, bool recover = true);
+
+        API void put(const char *label, const bool &content, bool vector = false, bool recover = true);
 
         /**
          * All get function won't recurse to find label, just find in this object.
@@ -183,13 +208,18 @@ namespace dataStore{
         API Nullable void get(const char* label,float** floats,bool copy = false);
         API Nullable void get(const char* label,vector<float>** floats,bool copy = false);
 
+        API Nullable void get(const char* label,bool** bools,bool copy = false);
+        API Nullable void get(const char* label,vector<bool>** bools,bool copy = false);
+
+        API bool empty();
+
         /**
          * Save to Json, also to file
          * @param path The path to your file (path in computer or key in map)
          * @param data Data you want to write
          * @param storage Store to map or release, true means store, false means delete
          * */
-        API bool writeToJson(const char* target_name,const char* target_path,bool storage = true);
+        API bool writeToJson(const char* target_name,const char* target_path,bool recover = true,bool storage = true);
 
         API bool writeToJson();
 
@@ -197,4 +227,24 @@ namespace dataStore{
     };
 }
 
+}
+
+namespace dataStore{
+    template<typename T>
+    void put(Data* data,const char* label,const T *content, bool vector = false, bool recover = true);
+
+    template<typename T>
+    void put(Data* data,const char* label,NotNull const vector<T> *content);
+
+    template<typename T>
+    void getMap(Data* data,const char *label,T** input,bool copy = false);
+
+    template<typename T>
+    void getVector(Data* data,const char *label,vector<T>** input,bool copy = false);
+
+    template<typename T>
+    map<const string,T>* getMap(Data* data);
+
+    template<typename T>
+    map<const string,vector<T>>* getVector(Data* data);
 }

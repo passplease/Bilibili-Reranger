@@ -86,13 +86,25 @@ void freeOutputChar(char** output){
     delete *output;
 }
 
+void deleteConfig(const char* filePath, const char* fileType){
+    char* back;
+    defaultOutputChar(&back);
+    toConfigPath(back,filePath,fileType);
+    string path(back);
+    freeOutputChar(&back);
+    remove(path.c_str());
+}
+
 bool createConfig(char* output,const char* filePath, const char* fileType){
     try{
         if(!fileExists(ConfigPath.c_str())){
             _mkdir(ConfigPath.c_str());
         }
-        string path(".\\");
-        path.append(ConfigPath).append("\\").append(filePath).append(fileType);
+        char* back;
+        defaultOutputChar(&back);
+        toConfigPath(back,filePath,fileType);
+        string path(back);
+        freeOutputChar(&back);
         ofstream file(path.c_str());
         if(file.is_open()){
             file << "{}";
@@ -201,6 +213,8 @@ namespace dataStore{
         intArrays.clear();
         floats.clear();
         floatArrays.clear();
+        bools.clear();
+        boolArrays.clear();
         _valid = true;
         saved = false;
     }
@@ -240,6 +254,8 @@ namespace dataStore{
             this->intArrays = other->intArrays;
             this->floats = other->floats;
             this->floatArrays = other->floatArrays;
+            this->bools = other->bools;
+            this->boolArrays = other->boolArrays;
             this->saved = false;
             this->_neverSave = other->_neverSave;
         }
@@ -256,6 +272,8 @@ namespace dataStore{
             this->intArrays = other.intArrays;
             this->floats = other.floats;
             this->floatArrays = other.floatArrays;
+            this->bools = other.bools;
+            this->boolArrays = other.boolArrays;
             this->saved = false;
             this->_neverSave = other._neverSave;
         }
@@ -273,6 +291,8 @@ namespace dataStore{
                 && intArrays == other.intArrays
                 && floats == other.floats
                 && floatArrays == other.floatArrays
+                && bools == other.bools
+                && boolArrays == other.boolArrays
                 ){
             for(const pair<const string, Data>& d : other.data){
                 if(d.second == data.at(d.first))
@@ -305,16 +325,32 @@ namespace dataStore{
     Data *Data::operator+=(const dataStore::Data *other) {
         if(valid() && other != nullptr && other -> valid()) {
             data.insert(other->data.begin(), other->data.end());
-            dataArrays.insert(other->dataArrays.begin(), other->dataArrays.end());
+            for(auto temp : other -> dataArrays){
+                dataStore::put<Data>(this,temp.first.c_str(),&(temp.second));
+            }
             strings.insert(other->strings.begin(), other->strings.end());
-            stringArrays.insert(other->stringArrays.begin(), other->stringArrays.end());
+            for(auto temp : other -> stringArrays){
+                dataStore::put<string>(this,temp.first.c_str(),&(temp.second));
+            }
             ints.insert(other->ints.begin(), other->ints.end());
-            intArrays.insert(other->intArrays.begin(), other->intArrays.end());
+            for(auto temp : other -> intArrays){
+                dataStore::put<int>(this,temp.first.c_str(),&(temp.second));
+            }
             floats.insert(other->floats.begin(), other->floats.end());
-            floatArrays.insert(other->floatArrays.begin(), other->floatArrays.end());
+            for(auto temp : other -> floatArrays){
+                dataStore::put<float>(this,temp.first.c_str(),&(temp.second));
+            }
+            bools.insert(other->bools.begin(), other->bools.end());
+            for(auto temp : other -> boolArrays){
+                dataStore::put<bool>(this,temp.first.c_str(),&(temp.second));
+            }
             saved = false;
         }
         return this;
+    }
+
+    Data* Data::operator+=(const Data& other){
+        return *this += &other;
     }
 
     Data Data::operator+(const dataStore::Data *other) const {
@@ -336,23 +372,104 @@ namespace dataStore{
     }
 
     bool Data::neverSave() const {
-        return _neverSave;
+        return _neverSave || name.empty() || path.empty();
     }
 
     void Data::NeverSave() {
-        _neverSave = false;
+        _neverSave = true;
     }
 
-    void Data::put(const char *label, const dataStore::Data *content, bool vector, bool recover) {
+    void setSaved(dataStore::Data* data, bool saved = false){
+        data -> saved = saved;
+    }
+
+    template<typename T>
+    map<const string,T>* getMap(Data* data){
+        if constexpr (is_same_v<T,Data>)
+            return &(data -> data);
+        else if constexpr (is_same_v<T,string>)
+            return &(data -> strings);
+        else if constexpr (is_same_v<T,int>)
+            return &(data -> ints);
+        else if constexpr (is_same_v<T,float>)
+            return &(data -> floats);
+        else if constexpr (is_same_v<T,bool>)
+            return &(data -> bools);
+        throwError("Wrong Type !");
+    }
+
+    template<typename T>
+    map<const string,vector<T>>* getVector(Data* data){
+        if constexpr (is_same_v<T,Data>)
+            return &(data -> dataArrays);
+        else if constexpr (is_same_v<T,string>)
+            return &(data -> stringArrays);
+        else if constexpr (is_same_v<T,int>)
+            return &(data -> intArrays);
+        else if constexpr (is_same_v<T,float>)
+            return &(data -> floatArrays);
+        else if constexpr (is_same_v<T,bool>)
+            return &(data -> boolArrays);
+        throwError("Wrong Type !");
+    }
+
+    template<typename T>
+    void put(Data* data,const char* label,const T *content, bool vector, bool recover){
+        if(!data -> valid())
+            return;
+        string stringLabel(label);
+        if(vector){
+            auto v = getVector<T>(data);
+            if(v -> contains(stringLabel)){
+                if(content != nullptr)
+                    (*v)[stringLabel].emplace_back(*content);
+                else v -> erase(stringLabel);
+                setSaved(data);
+            }else if(content != nullptr){
+                std::vector<T> newVector{};
+                newVector.emplace_back(*content);
+                (*v)[stringLabel] = newVector;
+                setSaved(data);
+            }
+        }else{
+            auto m = getMap<T>(data);
+            if(m -> contains(stringLabel)){
+                if(content == nullptr){
+                    m -> erase(stringLabel);
+                    setSaved(data);
+                    return;
+                }
+                if(recover) {
+                    (*m)[stringLabel] = *content;
+                    setSaved(data);
+                }
+            }else if(content != nullptr) {
+                (*m)[stringLabel] = *content;
+                setSaved(data);
+            }
+        }
+    }
+
+    template<typename T>
+    void put(Data* data,const char* label,const vector<T> *content){
+        auto vector = getVector<T>(data);
+        string l(label);
+        if(vector->contains(l)) {
+            auto& v = (*vector)[l];
+            v.insert(v.end(),content->begin(), content->end());
+        }else (*vector)[l] = *content;
+    }
+
+    void Data::validData(const dataStore::Data *input) noexcept(false) {
         if(!valid())
             return;
-        for(const auto& d : content -> data){
+        for(const auto& d : input -> data){
             if(&d.second == this){
                 throwError("Any json file cannot contain itself !");
                 return;
             }
         }
-        for(const auto& dArray : content -> dataArrays){
+        for(const auto& dArray : input -> dataArrays){
             for(const auto& d : dArray.second){
                 if(&d == this){
                     throwError("Any json file cannot contain itself !");
@@ -360,153 +477,69 @@ namespace dataStore{
                 }
             }
         }
-        string stringLabel(label);
-        if(vector){
-            if(dataArrays.contains(stringLabel)) {
-                if (content != nullptr)
-                    dataArrays[stringLabel].emplace_back(*content);
-                else dataArrays.erase(stringLabel);
-                saved = false;
-            }else {
-                if(content != nullptr) {
-                    std::vector<Data> newVector{};
-                    newVector.emplace_back(*content);
-                    dataArrays[stringLabel] = newVector;
-                    saved = false;
-                }
-            }
-        }else {
-            if (contains<string, Data>(stringLabel, data)) {
-                if(content == nullptr){
-                    data.erase(stringLabel);
-                    saved = false;
-                    return;
-                }
-                if (recover) {
-                    data[stringLabel] = *content;
-                    saved = false;
-                }
-            } else if(content != nullptr) {
-                data[stringLabel] = *content;
-                saved = false;
-            }
-        }
+    }
+
+    void Data::put(const char *label, const dataStore::Data *content, bool vector, bool recover) {
+        validData(content);
+        dataStore::put<Data>(this,label,content,vector,recover);
     }
 
     void Data::put(const char *label, const char *content, bool vector, bool recover) {
-        if(!valid())
-            return;
-        string stringLabel(label);
-        if(vector){
-            if(stringArrays.contains(stringLabel)){
-                if(content != nullptr)
-                    stringArrays[stringLabel].emplace_back(content);
-                else stringArrays.erase(stringLabel);
-                saved = false;
-            }else {
-                if(content != nullptr) {
-                    std::vector<string> newVector{};
-                    newVector.emplace_back(content);
-                    stringArrays[stringLabel] = newVector;
-                    saved = false;
-                }
-            }
-        }else {
-            if(contains<string,string>(stringLabel,strings)){
-                if(content == nullptr){
-                    strings.erase(stringLabel);
-                    saved = false;
-                    return;
-                }
-                if(recover) {
-                    strings[stringLabel] = string(content);
-                    saved = false;
-                }
-            }else if(content != nullptr) {
-                strings[stringLabel] = string(content);
-                saved = false;
-            }
-        }
+        string s(content);
+        dataStore::put<string>(this,label,&s,vector,recover);
     }
 
     void Data::put(const char *label, const int *content, bool vector, bool recover) {
-        if(!valid())
-            return;
-        string stringLabel(label);
-        if(vector){
-            if(intArrays.contains(stringLabel)){
-                if(content != nullptr)
-                    intArrays[stringLabel].emplace_back(*content);
-                else intArrays.erase(stringLabel);
-                saved = false;
-            }else if(content != nullptr){
-                std::vector<int> newVector{};
-                newVector.emplace_back(*content);
-                intArrays[stringLabel] = newVector;
-                saved = false;
-            }
-        }else{
-            if(ints.contains(stringLabel)){
-                if(content == nullptr){
-                    ints.erase(stringLabel);
-                    saved = false;
-                    return;
-                }
-                if(recover) {
-                    ints[stringLabel] = *content;
-                    saved = false;
-                }
-            }else if(content != nullptr) {
-                ints[stringLabel] = *content;
-                saved = false;
-            }
-        }
+        dataStore::put<int>(this,label,content,vector,recover);
     }
 
     void Data::put(const char *label, const float *content, bool vector, bool recover){
-        if(!valid())
-            return;
-        string stringLabel(label);
-        if(vector){
-            if(floatArrays.contains(stringLabel)){
-                if(content != nullptr) {
-                    floatArrays[stringLabel].emplace_back(*content);
-                }else floatArrays.erase(stringLabel);
-                saved = false;
-            }else if(content != nullptr){
-                std::vector<float> newVector{};
-                newVector.emplace_back(*content);
-                floatArrays[stringLabel] = newVector;
-                saved = false;
-            }
-        }else {
-            if(floats.contains(stringLabel)){
-                if(content == nullptr){
-                    floats.erase(stringLabel);
-                    saved = false;
-                    return;
-                }
-                if(recover) {
-                    floats[stringLabel] = *content;
-                    saved = false;
-                }
-            }else if(content != nullptr) {
-                floats[stringLabel] = *content;
-                saved = false;
-            }
-        }
+        dataStore::put<float>(this,label,content,vector,recover);
+    }
+
+    void Data::put(const char *label, const bool *content, bool vector, bool recover){
+        dataStore::put<bool>(this,label,content,vector,recover);
+    }
+
+    void Data::put(const char *label, const dataStore::Data &content, bool vector, bool recover) {
+        validData(&content);
+        dataStore::put<Data>(this,label,&content,vector,recover);
+    }
+
+    void Data::put(const char *label, const int &content, bool vector, bool recover) {
+        dataStore::put<int>(this,label,&content,vector,recover);
+    }
+
+    void Data::put(const char *label, const float &content, bool vector, bool recover){
+        dataStore::put<float>(this,label,&content,vector,recover);
+    }
+
+    void Data::put(const char *label, const bool &content, bool vector, bool recover){
+        dataStore::put<bool>(this,label,&content,vector,recover);
+    }
+
+    template<typename T>
+    void getMap(Data* data,const char *label,T** input,bool copy){
+        auto m = dataStore::getMap<T>(data);
+        if(copy)
+            **input = m -> at(label);
+        else *input = &(m -> at(label));
+    }
+
+    template<typename T>
+    void getVector(Data* data,const char *label,vector<T>** input,bool copy){
+        auto v = dataStore::getVector<T>(data);
+        if(copy)
+            **input = v -> at(label);
+        else *input = &(v -> at(label));
     }
 
     void Data::get(const char *label, dataStore::Data **data,bool copy) {
-        if(copy)
-            **data = this -> data.at(label);
-        else *data = &(this -> data.at(label));
+        dataStore::getMap<Data>(this,label,data,copy);
     }
 
     void Data::get(const char *label, vector<dataStore::Data> **data,bool copy) {
-        if(copy)
-            **data = this -> dataArrays.at(label);
-        else *data = &(this -> dataArrays.at(label));
+        dataStore::getVector<Data>(this,label,data,copy);
     }
 
     void Data::get(const char *label,const char **string, bool) {
@@ -525,36 +558,40 @@ namespace dataStore{
     }
 
     void Data::get(const char *label, int **ints, bool copy) {
-        if(copy)
-            **ints = this -> ints.at(label);
-        else *ints = &(this -> ints.at(label));
+        dataStore::getMap<int>(this,label,ints,copy);
     }
 
     void Data::get(const char *label, vector<int> **ints, bool copy) {
-        if(copy)
-            **ints = this -> intArrays.at(label);
-        else *ints = &(this -> intArrays.at(label));
+        dataStore::getVector<int>(this,label,ints,copy);
     }
 
     void Data::get(const char *label, float **floats, bool copy) {
-        if(copy)
-            **floats = this -> floats.at(label);
-        else *floats = &(this -> floats.at(label));
+        dataStore::getMap<float>(this,label,floats,copy);
     }
 
     void Data::get(const char *label, vector<float> **floats, bool copy) {
-        if(copy)
-            **floats = this -> floatArrays.at(label);
-        else *floats = &(this -> floatArrays.at(label));
+        dataStore::getVector<float>(this,label,floats,copy);
     }
 
-    bool Data::writeToJson(const char *target_name, const char *target_path, bool storage) {
+    void Data::get(const char *label, bool **bools, bool copy){
+        dataStore::getMap<bool>(this,label,bools,copy);
+    }
+
+    void Data::get(const char *label, vector<bool> **bools, bool copy){
+        dataStore::getVector<bool>(this,label,bools,copy);
+    }
+
+    bool Data::empty(){
+        return data.empty() && dataArrays.empty() && strings.empty() && stringArrays.empty() && ints.empty() && intArrays.empty() && floats.empty() && floatArrays.empty() && bools.empty() && boolArrays.empty();
+    }
+
+    bool Data::writeToJson(const char *target_name, const char *target_path,bool recover, bool storage) {
         if(!needSave())
             return false;
         setName(target_name);
         setPath(target_path);
-        Json json = getJson(name.c_str(), path.c_str());
-        if (json == nullptr) {
+        Json json = recover ? Json() : getJson(name.c_str(), path.c_str());
+        if (!recover && json == nullptr) {
             string error = "File not exists ! Cannot write Json ! File path: ";
             error.append(path);
             throwError(error.c_str());
@@ -641,9 +678,19 @@ namespace dataStore{
                             }
                             break;
                         }
+                        case nlohmann::detail::value_t::boolean: {
+                            for(int slot = 0;slot < j.size();slot++) {
+                                const bool dataInSlot = j[slot].get<bool>();
+                                data.put(label.c_str(),&dataInSlot,true);
+                            }
+                        }
+                        case nlohmann::detail::value_t::null:
+                            break;
                         default: {
                             data.broken();
-                            throwError("Unchecked Json file, not right format.");
+                            string error("Unchecked Json file, not right format. now label: ");
+                            error += label;
+                            throwError(error.c_str());
                             return;
                         }
                     }
@@ -670,9 +717,18 @@ namespace dataStore{
                             data.put(label.c_str(),&d);
                             break;
                         }
+                        case nlohmann::detail::value_t::boolean: {
+                            const bool d = j.get<bool>();
+                            data.put(label.c_str(),&d);
+                            break;
+                        }
+                        case nlohmann::detail::value_t::null:
+                            break;
                         default: {
                             data.broken();
-                            throwError("Unchecked Json file, not right format.");
+                            string error("Unchecked Json file, not right format. now label: ");
+                            error += label;
+                            throwError(error.c_str());
                             return;
                         }
                     }
@@ -683,7 +739,8 @@ namespace dataStore{
             say("Invalid Json File !",false,RED);
             if(!data.path.empty())
                 say(("File Path: " + data.path).c_str(),false, RED);
-            say("Exception Info: ",true,BLUE);
+            say("Exception Info: ",false,BLUE);
+            say(e.what(),true,BLUE);
             throwError(e.what());
         }
     }
@@ -726,6 +783,15 @@ namespace dataStore{
             for(int slot = 0;slot < i.second.size(); slot++)
                 json[label][slot] = i.second.at(slot);
         }
+        for(const auto& i : data.bools){
+            label = json.contains(i.first) ? Data::BOOL + i.first : i.first;
+            json[label] = i.second;
+        }
+        for(const auto& i : data.boolArrays){
+            label = json.contains(i.first) ? Data::BOOL_ARRAY + i.first : i.first;
+            for(int slot = 0;slot < i.second.size(); slot++)
+                json[label][slot] = i.second.at(slot);
+        }
     }
 }
 
@@ -737,3 +803,7 @@ const string dataStore::Data::INT = "int_";
 const string dataStore::Data::INT_ARRAY = "int_array_";
 const string dataStore::Data::FLOAT = "float_";
 const string dataStore::Data::FLOAT_ARRAY = "float_array_";
+const string dataStore::Data::BOOL = "bool_";
+const string dataStore::Data::BOOL_ARRAY = "bool_array_";
+
+template void dataStore::getMap<string>(dataStore::Data*,const char *,string** ,bool);

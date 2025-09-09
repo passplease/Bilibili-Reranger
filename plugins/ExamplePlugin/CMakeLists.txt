@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.27)
 project(ExamplePlugin)
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_VERBOSE_MAKEFILEON ON)# 输出构建日志
+set(DCMAKE_VERBOSE_MAKEFILE ON)# 输出构建日志
 add_compile_options(/utf-8)
 
 add_library(${PROJECT_NAME} SHARED main.cpp

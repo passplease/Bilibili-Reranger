@@ -2,16 +2,17 @@
 project(BiliBili_Reranger)
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_VERBOSE_MAKEFILEON ON)# 输出构建日志
+set(DCMAKE_VERBOSE_MAKEFILE ON)# 输出构建日志
 add_compile_options(/utf-8)
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME} src/main.cpp
+        src/develop/flags.h)
 set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 # Include
 add_subdirectory(api)
 if(DEFINED API)
-    message("Find API DLL, adding ...")
+    message(STATUS "Find API DLL, adding ...")
     target_link_libraries(${PROJECT_NAME} PUBLIC ${API})
     add_dependencies(${PROJECT_NAME} ${API})
 else ()
@@ -58,3 +59,11 @@ target_compile_definitions(
         $<$<CONFIG:Debug>:DEVELOP=true>
         $<$<NOT:$<CONFIG:Debug>>:DEVELOP=false>
 )
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test/DataFromBilibili.json")
+    add_custom_command(
+            TARGET ${PROJECT_NAME}
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/test/DataFromBilibili.json" "${CMAKE_BINARY_DIR}/Debug/testing/DataFromBilibili.json"
+            COMMENT "copying crawled data for test ..."
+    )
+endif ()

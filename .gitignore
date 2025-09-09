@@ -1,12 +1,12 @@
 .vs/
-.idea/
+*/.idea/
 cmake-build*/
 excluded/
-plugins/ExamplePlugins/.idea/
 build/
 release/
 DebugShells/
 DockerTest
+*/test/
 */env.list
 generate.stamp*
 desktop.ini
