@@ -1,0 +1,28 @@
+name: debug.yml
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - Dockerfile
+jobs:
+  Debug:
+    runs-on: windows-2019
+    container:
+      # 镜像地址完全动态生成，确保拉取的是当前 commit 构建的镜像
+      image: ghcr.io/${{ github.repository }}:latest
+      # 使用 GITHUB_TOKEN 来拉取私有或内部镜像
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Debug Code
+        run: |
+          cmake -B build -DCMAKE_TOOLCHAIN_FILE=vcpkg
+          cmake --build build --config Debug
+          cmake --build build --target COPY_ALL_PDBS
+          cd build\Debug
+          BiliBili_Reranger.exe

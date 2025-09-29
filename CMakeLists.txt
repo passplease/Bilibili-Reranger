@@ -60,10 +60,10 @@ target_compile_definitions(
         $<$<NOT:$<CONFIG:Debug>>:DEVELOP=false>
 )
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test/DataFromBilibili.json")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test")
     add_custom_command(
             TARGET ${PROJECT_NAME}
-            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/test/DataFromBilibili.json" "${CMAKE_BINARY_DIR}/Debug/testing/DataFromBilibili.json"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/test" "${CMAKE_BINARY_DIR}/Debug/testing"
             COMMENT "copying crawled data for test ..."
     )
 endif ()

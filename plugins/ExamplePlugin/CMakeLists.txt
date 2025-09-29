@@ -25,12 +25,12 @@ set(DLL_NAME ${PROJECT_NAME} PARENT_SCOPE)
 add_custom_target(
         "${PROJECT_NAME}_COPY_DLL"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/Debug/plugins"
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> "${CMAKE_BINARY_DIR}/Debug/plugins" # copy
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${PROJECT_NAME}> "${CMAKE_BINARY_DIR}/Debug/plugins" # copy
         COMMENT "dealing with plugin dll files ..."
 )
 add_custom_target(
         "${PROJECT_NAME}_COPY_PDB"
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_PDB_FILE:${PROJECT_NAME}> "${CMAKE_BINARY_DIR}/Debug/plugins" # copy
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_PDB_FILE:${PROJECT_NAME}> "${CMAKE_BINARY_DIR}/Debug/plugins" # copy
         COMMENT "dealing with plugin pdb files ..."
 )# .pdb file for debug set break point
 

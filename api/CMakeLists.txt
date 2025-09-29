@@ -19,10 +19,16 @@ add_library(${PROJECT_NAME} SHARED
         bilibiliAPIs.h
         BilibiliInterface.cpp
         BilibiliInterface.h
+#        bilibili_wbi/wbi.cpp
+#        bilibili_wbi/wbi.h
 )
 
 find_package(nlohmann_json CONFIG REQUIRED)
 target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json::nlohmann_json)
+#find_package(cryptopp CONFIG REQUIRED)
+#target_link_libraries(${PROJECT_NAME} PRIVATE cryptopp::cryptopp)
+#find_package(cpr CONFIG REQUIRED)
+#target_link_libraries(${PROJECT_NAME} PRIVATE cpr::cpr)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY ENABLE_EXPORTS ON)# Allow export
 
@@ -36,12 +42,12 @@ target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
 
 add_custom_target(
         "${PROJECT_NAME}_COPY_DLL"
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> "${CMAKE_BINARY_DIR}/Debug/" # copy
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${PROJECT_NAME}> "${CMAKE_BINARY_DIR}/Debug/" # copy
         COMMENT "dealing with plugin dll files ..."
 )
 add_custom_target(
         "${PROJECT_NAME}_COPY_PDB"
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_PDB_FILE:${PROJECT_NAME}> "${CMAKE_BINARY_DIR}/Debug/" # copy
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_PDB_FILE:${PROJECT_NAME}> "${CMAKE_BINARY_DIR}/Debug/" # copy
         COMMENT "dealing with plugin pdb files ..."
 )
 

@@ -20,11 +20,12 @@ void createConfig(){
         config.setName(CONFIG_NAME);
         #endif
 
-        config.put(VMID,"3493105986702255",false,VMID);
+        config.put(VMID,"3493105986702255",false,FORCE_GENERATE_CONFIG);
         config.put(SUBSCRIBE_PUBLISH_TIME,3,false,FORCE_GENERATE_CONFIG);
         config.put(SUBSCRIBE_SEARCH_VIDEO_COUNT, 5, false, FORCE_GENERATE_CONFIG);
         config.put(WAIT_TIME,5000,false,FORCE_GENERATE_CONFIG);
         config.put(SEARCH_PAGE_SIZE, 50,false, FORCE_GENERATE_CONFIG);
+        config.put(MAX_CRAWL_COUNT,10000,false,FORCE_GENERATE_CONFIG);
         config.writeToJson();
     }
     freeOutputChar(&path);
@@ -72,4 +73,5 @@ void _readConfig() noexcept(false){
     getAndStore<int>(&config, SUBSCRIBE_SEARCH_VIDEO_COUNT);
     getAndStore<int>(&config, WAIT_TIME);
     getAndStore<int>(&config, SEARCH_PAGE_SIZE);
+    getAndStore<int>(&config, MAX_CRAWL_COUNT);
 }

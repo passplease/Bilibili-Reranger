@@ -28,7 +28,7 @@ public:
         json.clear();
         tempData.clear();
     }
-    void curlSetup(const char *cookie){
+    void curlSetup(const char* cookie,const char* useragent){
         if(curl == nullptr){
             throwError("创建CURL失败");
             return;
@@ -36,6 +36,7 @@ public:
         curl_easy_setopt(curl,CURLOPT_WRITEFUNCTION,CurlHelper::saveData,this);
         curl_easy_setopt(curl,CURLOPT_WRITEDATA,this);
         curl_easy_setopt(curl,CURLOPT_COOKIE,cookie);
+        curl_easy_setopt(curl,CURLOPT_USERAGENT,useragent);
     }
     bool connect(bool deal = true){
         if(nextURL().empty())
@@ -71,11 +72,23 @@ public:
             }
         }
         #endif
-        if(deal && dealJson()) {
-            clear();
-            return true;
+        #if DEVELOP
+        try {
+        #endif
+            if (deal && dealJson()) {
+                clear();
+                return true;
+            }
+            return !deal;
+        #if DEVELOP
+        }catch (exception e){
+            warn("Dealing Json encounters problem !");
+            say("Json content: ",false,RED);
+            say(to_string(json).c_str(),true,RED);
+            throwError(e.what());
+            return false;
         }
-        return !deal;
+        #endif
     }
     CURL* getCurl(){
         return curl;
@@ -92,6 +105,11 @@ public:
             #endif
                 json = Json::parse(tempData);
             #ifdef DEVELOP
+                dataStore::Data data = json.get<dataStore::Data>();
+                data.setPath(tempDataPath);
+                data.setName(tempDataName);
+                say("保存此次爬取临时数据");
+                data.writeToJson();
             }catch (exception e){
                 warn("爬取数据格式错误！");
                 warn("数据如下：");
@@ -137,25 +155,54 @@ public:
                         }
                     }
                 }else{
-                    forEachVideoOfPerson(json){
+                    forEachVideo(json,ofPerson){
                         const auto& video = bilibili::Video::fromJson(videoData);
                         bilibili::setVideo(&video);
                         if(roughCheckVideo() && finalCheckVideo())
                             bilibili::keepVideo(video);
                         bilibili::clearVideo();
                     }
-                    clear();
                     clearURL();
                     return crawlTask::nextTask(true) != nullptr;
                 }
                 return false;
             }
             case crawlTask::WorkingMode::TAG : {
-                dataStore::Data data = json.get<dataStore::Data>();
-                data.setName(tempDataName);
-                data.setPath(tempDataPath);
-                data.writeToJson();
-                return false;
+                forEachVideo(json,ofSearch){
+                    const auto& video = bilibili::Video::fromJson(videoData);
+                    if(videoData["tag"].get<string>().find(task -> keyword) == string::npos)
+                        continue;
+                    bilibili::setVideo(&video);
+                    if(roughCheckVideo() && finalCheckVideo())
+                        bilibili::keepVideo(video);
+                    bilibili::clearVideo();
+                }
+                if(bilibili::enoughVideo()) {
+                    clearURL();
+                    return crawlTask::nextTask(true) != nullptr;
+                }else {
+                    cout << getDataFromJson(json)["next"] << endl;
+                    int page = getDataFromJson(json)["next"].get<int>();
+                    nextPage(page);
+                    return true;
+                }
+            }
+            case crawlTask::WorkingMode::SEARCH : {
+                forEachVideo(json,ofSearch){
+                    const auto& video = bilibili::Video::fromJson(videoData);
+                    bilibili::setVideo(&video);
+                    if(roughCheckVideo() && finalCheckVideo())
+                        bilibili::keepVideo(video);
+                    bilibili::clearVideo();
+                }
+                if(bilibili::enoughVideo()) {
+                    clearURL();
+                    return crawlTask::nextTask(true) != nullptr;
+                }else {
+                    int page = getDataFromJson(json)["next"].get<int>();
+                    nextPage(page);
+                    return true;
+                }
             }
             default: return false;
         }
@@ -221,6 +268,10 @@ public:
             CurlHelper::url = url;
     }
     void refreshSubscribers(bool force = false){
+        #if MORE_DETAILS
+        say("开始准备关注博主名单");
+        #endif
+
         if(subscribers.empty() || force) {
             clearURL();
             crawlTask::Task t("", 0, crawlTask::WorkingMode::SUBSCRIBE);
@@ -252,6 +303,10 @@ public:
             clear();
             clearURL();
         }
+
+        #if MORE_DETAILS
+        say("关注博主名单已准备完成");
+        #endif
     }
     [[nodiscard]] bool crawlNext() const{
         return _crawlNext || (crawlTask::nowTask() -> mode != crawlTask::WorkingMode::SUBSCRIBE);
@@ -264,13 +319,17 @@ const string subscribe = "https://api.bilibili.com/x/relation/followings?vmid=34
 const string liked = "https://api.bilibili.com/x/space/like/video?vmid=3493105986702255";
 dataStore::Data CurlHelper::subscribers = dataStore::Data{};
 
-const char* cookie = getenv("COOKIE");
+const char* cookie = getenv(COOKIE);
+const char* user_agent = getenv(USERAGENT);
 
 bool crawl(){
     CurlHelper helper = CurlHelper();
-    helper.curlSetup(cookie);
+    helper.curlSetup(cookie,user_agent);
     helper.refreshSubscribers();
+    const int max_count = config<int>(MAX_CRAWL_COUNT);
+    int count = 0;
     do{
+        count++;
         say("等待中...");
 
         #if SLEEP_CRAWL
@@ -281,7 +340,8 @@ bool crawl(){
         if(task == nullptr)
             break;
         helper.nextSearch(getURL(task));
-    }while(helper.connect());
+    }while(helper.connect() && count < max_count);
+    bilibili::saveVideos();
     return helper.finishCrawl();
 }
 
@@ -294,7 +354,7 @@ string getURL(crawlTask::Task* task){// TODO 允许插件根据自己的需求�
             return back;
         }
         case crawlTask::WorkingMode::TAG :
-        case crawlTask::WorkingMode::SEARCH : {// TODO WBI签名
+        case crawlTask::WorkingMode::SEARCH : {
             string back = searchVideos;
             back += "&page_size=";
             back += to_string(config<int>(SEARCH_PAGE_SIZE));
@@ -304,4 +364,21 @@ string getURL(crawlTask::Task* task){// TODO 允许插件根据自己的需求�
         }
         default: return "";
     }
+}
+
+bool checkEnv(){
+    bool error = true;
+    if(cookie == nullptr){
+        string err = "未找到环境变量: ";
+        err += COOKIE;
+        warn(err.c_str());
+        error &= false;
+    }
+    if(user_agent == nullptr){
+        string err = "未找到环境变量: ";
+        err += USERAGENT;
+        warn(err.c_str());
+        error &= false;
+    }
+    return error;
 }

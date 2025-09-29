@@ -7,13 +7,28 @@ namespace bilibili{
     Video::Video(const dataStore::Data &data) {
         Json j;
         j = data;
-        Video{j};
+        new (this) Video(j);
     }
 
     Video::Video(const Json &json) {
         this -> json = json;
-        _publishTime = getPublishTime(json);
-        _title = getTitle(json);
+        #ifdef DEVELOP
+        try {
+        #endif
+            _publishTime = getPublishTime(json);
+            _title = getTitle(json);
+            _author = getAuthor(json);
+            _description = getDescription(json);
+            _mid = getMid(json);
+            _url = getVideoURL(json);
+        #ifdef DEVELOP
+        }catch (exception e){
+            warn("Invalid json format ! Now json content :");
+            warn(to_string(json).c_str());
+            warn(e.what());
+            reset();
+        }
+        #endif
     }
 
     Video Video::fromData(const dataStore::Data &data) {
@@ -28,17 +43,70 @@ namespace bilibili{
         return video.json.get<dataStore::Data>();
     }
 
-    int Video::publishTime(){
-        int back = _publishTime;
-        return back;
+    string Video::getURLFromJson(const Json &json) {
+        if(json.contains("arcurl"))
+            return json["arcurl"].get<std::string>();
+        else if(json.contains("three_point")){
+            return json["three_point"][1]["short_link"];
+        }
+        string error("Invalid Json Format !!! Json :\n");
+        error += to_string(json);
+        throwError(error.c_str());
+        return "";
     }
 
-    dataStore::Data Video::getData() {
+    int const& Video::publishTime() const{
+        return _publishTime;
+    }
+
+    const char* Video::author() const{
+        return _author.c_str();
+    }
+
+    const char* Video::description() const{
+        return _description.c_str();
+    }
+
+    int const& Video::mid() const{
+        return _mid;
+    }
+
+    dataStore::Data Video::getData() const {
         return toData(*this);
     }
 
-    const char* Video::title(){
+    Json const& Video::getJson() const{
+        return json;
+    }
+
+    const char* Video::title() const{
         return _title.c_str();
+    }
+
+    const char* Video::url() const {
+        return _url.c_str();
+    }
+
+    void Video::write_necessary(Json& json) const{
+        json["title"] = _title;
+        json["publishTime"] = publishTime();
+        json["author"] = _author;
+        json["description"] = _description;
+        json["mid"] = _mid;
+        json["url"] = _url;
+    }
+
+    void Video::write_all(Json& json) const{
+        json = getJson();
+    }
+
+    void Video::reset() {
+        _title.clear();
+        _publishTime = -1;
+        _author.clear();
+        _description.clear();
+        _mid = -1;
+        _url.clear();
     }
 
     void setVideo(Nullable const Video* video){
@@ -55,12 +123,34 @@ namespace bilibili{
 
     map<string,vector<Video>> videos = map<string,vector<Video>>();
 
-    void keepVideo(Video video,const char* label){
+    void keepVideo(const Video& video,const char* label){
         string name(label);
         videos[name].emplace_back(video);
     }
 
     map<string,vector<Video>> getVideos(){
         return videos;
+    }
+
+    bool enoughVideo(const char* label){
+        return videos[string(label)].size() >= crawlTask::nowTask() -> videoCount;
+    }
+
+    void saveVideos(){
+        if(fileExists(OUTPUT_PATH)){
+            deleteConfig(OUTPUT_PATH,true);
+        }
+        Json json;
+        for(const auto& group : getVideos())
+            for(int i = 0;i < group.second.size();i++) {
+                group.second[i].write_necessary(json[group.first][i]);
+                #ifdef DEVELOP
+                group.second[i].write_all(json[group.first][i]["all_json"]);
+                #endif
+            }
+        if(storeJson(OUTPUT_NAME,OUTPUT_PATH,json)) {
+            saveToFile(OUTPUT_NAME,OUTPUT_PATH);
+            storeJson(OUTPUT_NAME,OUTPUT_PATH, nullptr, true);
+        }else throwError("Save Output file failed !");
     }
 }

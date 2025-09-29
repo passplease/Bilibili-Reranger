@@ -48,7 +48,7 @@ API void defaultOutputChar(char** output);
 
 API void freeOutputChar(char** output);
 
-API void deleteConfig(const char* filePath, const char* fileType = ".json");
+API void deleteConfig(const char* filePath,bool absolute = false, const char* fileType = ".json");
 
 /**
  * Create a config file (default .Json)
@@ -62,7 +62,7 @@ API bool getConfig(char* output,const char* filePath, const char* fileType = ".j
 
 API void toConfigPath(NotNull char* back,const char* filePath,const char* fileType = ".json");
 
-API bool saveToFile(const char* name,const char* path);
+API bool saveToFile(const char* name,const char* path,bool recover = false);
 
 /**
  * @deprecated
@@ -71,7 +71,7 @@ API bool saveToFile(const char* name,const char* path);
  * @param release Defined add to map or delete from map, false means adding
  * @return Success(true) or Fail(false)
  * */
-API bool storeJson(const char* name,const char* path,const Json& json = nullptr,bool release = false);// TODO 还有用吗
+API bool storeJson(const char* name,const char* path,const Json& json = nullptr,bool release = false);
 
 namespace dataStore{
     class Data;

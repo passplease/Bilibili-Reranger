@@ -9,7 +9,7 @@ using Json = nlohmann::json;
 namespace fs = std::filesystem;
 
 const string ConfigPath = "config";
-map<const char*,Json> storedJson = map<const char*,Json>();
+map<string,Json> storedJson = map<string,Json>();
 
 bool endWith(const char* target,const char* substring){
     string t = string(target);
@@ -86,10 +86,12 @@ void freeOutputChar(char** output){
     delete *output;
 }
 
-void deleteConfig(const char* filePath, const char* fileType){
+void deleteConfig(const char* filePath,bool absolute, const char* fileType){
     char* back;
     defaultOutputChar(&back);
-    toConfigPath(back,filePath,fileType);
+    if(absolute){
+        strcpy_s(back, strlen(filePath) + 1,filePath);
+    }else toConfigPath(back,filePath,fileType);
     string path(back);
     freeOutputChar(&back);
     remove(path.c_str());
@@ -160,12 +162,18 @@ void toConfigPath(char* back,const char* filePath,const char* fileType){
     strcpy_s(back, strlen(path.c_str()) + 1,path.c_str());
 }
 
-bool saveToFile(const char* name,const char* path){
+bool saveToFile(const char* name,const char* path,bool recover){
     auto json = getJson(name,nullptr);
     if(json == nullptr)
         json = getJson(name,path);
     if(json != nullptr){
-        ofstream file(path);
+        const auto& dir = fs::path(path).parent_path();
+        if(!dir.empty() && !fs::exists(dir)){
+            fs::create_directories(dir);
+        }
+        ofstream file(path,0x02);
+        if(recover)
+            file.clear();
         file << json;
         file.close();
         return true;
@@ -648,6 +656,8 @@ namespace dataStore{
                 const Json& j = pair.value();
                 const string& label = pair.key();
                 if(j.is_array()){
+                    if(j.empty())
+                        continue;
                     switch (j[0].type()) {
                         case nlohmann::detail::value_t::object: {
                             for(int slot = 0;slot < j.size();slot++) {

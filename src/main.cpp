@@ -15,15 +15,6 @@ void clean(){
     curl_global_cleanup();
 }
 
-bool checkEnv(){
-    bool error = true;
-    if(cookie == nullptr){
-        warn("未找到环境变量: COOKIE");
-        error = false;
-    }
-    return error;
-}
-
 int main(){
     readConfig();
     PluginHandler::loadAll();

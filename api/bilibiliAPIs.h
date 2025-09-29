@@ -7,4 +7,10 @@
 #define getSubscribers(json,all) (all ? getDataFromJson(json)["list"] : json["list"])
 #define getSubscriberCount(json) getDataFromJson(json)["total"].get<int>()
 #define getSubscriberName(json) up.value().at("uname").get<string>()
-#define forEachVideoOfPerson(json) for(const auto& videoData : getDataFromJson(json)["item"])
+#define forEachVideo(json,label) for(const auto& videoData : getDataFromJson(json)[label])
+#define ofPerson "item"
+#define ofSearch "result"
+
+// Environments:
+#define COOKIE "COOKIE"
+#define USERAGENT "USERAGENT"
