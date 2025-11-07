@@ -1,4 +1,5 @@
-#include <map>
+#pragma once
+
 #include "APIStatus.h"
 #include "Util.h"
 
@@ -48,7 +49,7 @@ namespace crawlTask{
         const char* name;
         int videoCount;
 
-        API explicit Group(const char* name,unsigned int videoCount,bool regi = false);
+        API explicit Group(const char* name,unsigned int videoCount = 0,bool regi = false);
 
         API Group* operator+= (Group& other);
 
@@ -102,4 +103,11 @@ namespace crawlTask{
     API void group_to_data(dataStore::Data& data, const Group* group);
 }
 
+}
+
+namespace crawlTask {
+    /**
+     * For network request which has specific target
+     */
+    API void GroupFilter(NotNull const string& target);
 }

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Util.h"
 #include "pluginInterface.h"
 
@@ -10,6 +12,12 @@ crawlTask::Group biological("biological",0);
 #define EXAMPLE_PATH "ExampleConfig"
 #define EXAMPLE_NAME "example_for_example_plugin"
 #define GROUPS_LABEL "groups"
+
+#ifdef DEVELOP
+    #define FORCE_CONFIG true
+#else
+    #define FORCE_CONFIG false
+#endif
 
 void initGroups(){
     crawlTask::Task* a = nullptr;
@@ -41,6 +49,9 @@ void exampleConfig(){
     char* path;
     defaultOutputChar(&path);
     toConfigPath(path,EXAMPLE_PATH);
+    #if FORCE_CONFIG
+        deleteConfig(EXAMPLE_PATH);
+    #endif
     if(!fileExists(path) && createConfig(path,EXAMPLE_PATH)) {
         initGroups();
         auto example = dataStore::Data::readFromJson(EXAMPLE_PATH,EXAMPLE_NAME);

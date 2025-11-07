@@ -1,12 +1,17 @@
 ﻿cmake_minimum_required(VERSION 3.27)
 project(BiliBili_Reranger)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(DCMAKE_VERBOSE_MAKEFILE ON)# 输出构建日志
-add_compile_options(/utf-8)
+set(DEBUG_OUTPUT_PATH "${CMAKE_BINARY_DIR}/Debug")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${DEBUG_OUTPUT_PATH})# Debug模式编译文件输出目录
+if(WIN32)
+    add_compile_options(/utf-8)
+endif ()
 
 add_executable(${PROJECT_NAME} src/main.cpp
-        src/develop/flags.h)
+        src/develop/flags.h
+        src/PortListener.h)
 set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 # Include
@@ -21,6 +26,7 @@ endif ()
 
 find_package(CURL REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
+find_package(Boost REQUIRED COMPONENTS system)
 
 add_custom_target(
         COPY_ALL_DLLS
@@ -52,16 +58,18 @@ endif ()
 get_property(NEED_COPY_PDB GLOBAL PROPERTY COPY_ALL_PDBS)
 if(NEED_COPY_PDB)
     add_dependencies(COPY_ALL_PDBS ${NEED_COPY_PDB})
+else ()
+    add_dependencies(COPY_ALL_PDBS COPY_ALL_DLLS)
 endif ()
 
 target_compile_definitions(
         ${PROJECT_NAME} PRIVATE
         $<$<CONFIG:Debug>:DEVELOP=true>
-        $<$<NOT:$<CONFIG:Debug>>:DEVELOP=false>
 )
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test")
     add_custom_command(
+            POST_BUILD
             TARGET ${PROJECT_NAME}
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/test" "${CMAKE_BINARY_DIR}/Debug/testing"
             COMMENT "copying crawled data for test ..."

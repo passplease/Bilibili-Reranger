@@ -1,11 +1,10 @@
-#include <string>
+#pragma once
+
 #include <map>
 #include <nlohmann/json.hpp>
-#include <iostream>
-#include <fstream>
 #include "APIStatus.h"
 
-#pragma once
+#define MAX_BUFFER_SIZE 100
 
 using namespace std;
 using Json = nlohmann::json;
@@ -32,7 +31,7 @@ API bool startWith(const char* target,const char* substring);
 /**
  * @param buffer DLL initialize, need call function: <p style="color:red">freeOutputChar</p> to free memory
  * */
-API void removeEnd(const char* target,const char* substring,char** buffer);
+API int removeEnd(const char* target,const char* substring,char** buffer);
 
 API bool fileExists(const char* name, bool absolute = false);
 
@@ -53,14 +52,14 @@ API void deleteConfig(const char* filePath,bool absolute = false, const char* fi
 /**
  * Create a config file (default .Json)
  * */
-API bool createConfig(char* output,const char* filePath, const char* fileType = ".json");
+API bool createConfig(Nullable char* output, const char* filePath,const size_t maxLength = MAX_BUFFER_SIZE, const char* fileType = ".json");
 
 /**
  * Get config file path, other function's parameter: path will call automatically
  * */
-API bool getConfig(char* output,const char* filePath, const char* fileType = ".json");
+API bool getConfig(char* output, const char* filePath,const size_t maxLength = MAX_BUFFER_SIZE, const char* fileType = ".json");
 
-API void toConfigPath(NotNull char* back,const char* filePath,const char* fileType = ".json");
+API void toConfigPath(char* back, const char* filePath,const size_t maxLength = MAX_BUFFER_SIZE, const char* fileType = ".json");
 
 API bool saveToFile(const char* name,const char* path,bool recover = false);
 
@@ -81,14 +80,14 @@ namespace dataStore{
     API void to_json(Json& json,const Data& data);
 
     class Data {
-        friend void setSaved(dataStore::Data *data, bool saved);
+        friend void setSaved(Data *data, bool saved);
     private:
-        bool _valid;
+        bool _valid = false;
 
         bool saved = true;
         bool _neverSave = false;
     public:
-        map<const string,Data> data = map<const string,Data>();
+        map<const string,Data> data = map<const string,Data>();// TODO 动态初始化
         const static string DATA;
         map<const string,vector<Data>> dataArrays = map<const string,vector<Data>>();
         const static string DATA_ARRAY;
@@ -119,9 +118,11 @@ namespace dataStore{
 
         API explicit Data(bool valid = true);
 
-        API Data(const dataStore::Data& other);
+        API Data(const Data& other);
 
-        API Data(const dataStore::Data* other);
+        API explicit Data(const Data* other);
+
+        API Data(Data&& old) noexcept;
 
         API ~Data();
 
@@ -154,9 +155,9 @@ namespace dataStore{
 
         API void copy(Data** a) const;
 
-        API bool needSave() const;
+        [[nodiscard]] API bool needSave() const;
 
-        API bool neverSave() const;
+        [[nodiscard]] API bool neverSave() const;
 
         API void NeverSave();
 
@@ -199,8 +200,8 @@ namespace dataStore{
         /**
          * @param copy For string, this parameter is invalid, only true is allowed
          * */
-        API Nullable void get(const char* label,const char** string,bool copy = true);
-        API Nullable void get(const char* label,NotNull vector<const char*>** string,bool copy = false);
+        API Nullable void get(const char* label,const char** string,bool copy = true) const;
+        API Nullable void get(const char* label,NotNull vector<const char*>** string,bool copy = false) const;
 
         API Nullable void get(const char* label,int** ints,bool copy = false);
         API Nullable void get(const char* label,vector<int>** ints,bool copy = false);
